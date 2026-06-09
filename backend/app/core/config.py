@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     jwt_secret_key: str = "change-me-to-a-random-secret-key-in-production"
     jwt_algorithm: str = "HS256"
-    jwt_access_token_expire_minutes: int = 30
+    jwt_access_token_expire_minutes: int = 4320  # 3 天
     jwt_refresh_token_expire_days: int = 7
 
     llm_api_key: str = ""

@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 # Must set env before importing app modules
 os.environ["DATABASE_URL"] = "sqlite://"
@@ -21,8 +22,10 @@ from app.core.database import get_db
 from app.core.security import InMemoryRedis, hash_password, set_redis_client
 from app.main import app
 from app.models import Base
-from app.models.course import Course, CourseStatus, CourseTeacher
+from app.models.course import Course, CourseCreateApproval, CoursePublishApproval, CourseStatus, CourseTeacher
+from app.models.material import MaterialType
 from app.models.user import User, UserRole, UserStatus
+from app.models.warehouse import CourseSubject, MaterialWarehouse, WarehouseKind
 
 engine = create_engine(
     "sqlite://",
@@ -82,6 +85,41 @@ def seed_users(db_session):
 
 
 @pytest.fixture
+def seed_warehouses(db_session):
+    warehouses = []
+    for name, mtype in [("PDF库", MaterialType.pdf), ("TXT库", MaterialType.txt), ("MD库", MaterialType.md)]:
+        wh = MaterialWarehouse(
+            name=name,
+            warehouse_kind=WarehouseKind.file_type,
+            material_type=mtype,
+            icon="📦",
+            color="#409eff",
+        )
+        db_session.add(wh)
+        warehouses.append(wh)
+    for name, subject in [
+        ("Python课程库", CourseSubject.python),
+        ("Java课程库", CourseSubject.java),
+        ("Cpp课程库", CourseSubject.cpp),
+    ]:
+        wh = MaterialWarehouse(
+            name=name,
+            warehouse_kind=WarehouseKind.course,
+            course_subject=subject,
+            material_type=MaterialType.pdf,
+            icon="📦",
+            color="#409eff",
+            sort_order=10,
+        )
+        db_session.add(wh)
+        warehouses.append(wh)
+    db_session.commit()
+    for wh in warehouses:
+        db_session.refresh(wh)
+    return warehouses
+
+
+@pytest.fixture
 def seed_course(db_session, seed_users):
     teacher = seed_users["teacher"]
     course = Course(
@@ -89,6 +127,9 @@ def seed_course(db_session, seed_users):
         description="test",
         teacher_id=teacher.id,
         status=CourseStatus.published,
+        create_approval=CourseCreateApproval.approved,
+        publish_approval=CoursePublishApproval.approved,
+        published_at=datetime.now(),
     )
     db_session.add(course)
     db_session.flush()

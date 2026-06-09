@@ -5,7 +5,7 @@
 > **对照文档**：`root_data/01_慧编学伴——智能编程学习助教系统的设计与实现.pdf`  
 > **检查重点**：Python 后端业务逻辑 · 前端 UI · 数据库（MySQL / Redis / 向量数据库）  
 > **关联报告**：`04_Python_功能与技术栈分析总结.md`  
-> **开发规范**：`root_data/SKILL/01_skill.md`（Python 主语言、模块测试、逻辑外键、接口一致性）
+> **开发规范**：`root_data/SKILL/01_skill.md`（Python 主语言、模块测试、逻辑外键、接口一致性）；Phase 3 起另见 **`root_data/SKILL/02_skill.md`**
 
 ---
 

@@ -29,6 +29,12 @@ const router = createRouter({
           meta: { roles: ['student'] },
         },
         {
+          path: 'student/browse',
+          name: 'student-browse',
+          component: () => import('@/views/student/StudentCourseBrowse.vue'),
+          meta: { roles: ['student'] },
+        },
+        {
           path: 'student/chat',
           name: 'student-chat',
           component: () => import('@/views/student/StudentChat.vue'),
@@ -44,6 +50,18 @@ const router = createRouter({
           path: 'teacher/materials',
           name: 'teacher-materials',
           component: () => import('@/views/teacher/TeacherMaterials.vue'),
+          meta: { roles: ['teacher', 'admin'] },
+        },
+        {
+          path: 'teacher/warehouses',
+          name: 'teacher-warehouses',
+          component: () => import('@/views/warehouse/WarehouseList.vue'),
+          meta: { roles: ['teacher', 'admin'] },
+        },
+        {
+          path: 'teacher/warehouses/:id',
+          name: 'teacher-warehouse-detail',
+          component: () => import('@/views/warehouse/WarehouseDetail.vue'),
           meta: { roles: ['teacher', 'admin'] },
         },
       ],

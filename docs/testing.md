@@ -81,16 +81,15 @@ pytest tests/test_health.py -v
 
 ---
 
-## 6. 测试门禁（skill S5）
+## 6. 测试门禁（skill S5；Phase 3 闭环见 `root_data/SKILL/02_skill.md` §二.3）
 
 每个 Phase 完成前，对应测试文件 **全部通过** 方可进入下一阶段。
 
 | Phase | 测试文件 | 状态 |
 |-------|---------|------|
-| 0 | `test_health.py` | ✅ Phase 0 |
+| 0 | `test_health.py` | ✅ Phase 0（含组件探活, 2026-06-09） |
 | 1 | `test_auth.py`、`test_courses.py`、`test_deps.py` | ✅ Phase 1（14 passed, 2026-06-08） |
-| 2 | `test_material_pipeline.py`、`test_vector_store.py`、`test_chat_rag.py`、`test_chat_sse.py` | ✅ Phase 2（23 passed, 2026-06-08） |
-| 2 | `test_material_pipeline.py`、`test_chat_rag.py` 等 | 待 Phase 2 |
+| 2 | `test_material_pipeline.py`、`test_vector_store.py`、`test_chat_rag.py`、`test_chat_sse.py`、`test_warehouses.py` | ✅ Phase 2+仓库（45 passed, 2026-06-09） |
 | 3 | `test_code_analysis.py`、`test_mastery.py` 等 | 待 Phase 3 |
 | 4 | `test_teacher_stats.py`、`test_health.py`（全组件） | 待 Phase 4 |
 
@@ -110,6 +109,20 @@ pytest tests/test_health.py -v
 |------|------|------|
 | `pytest -v` | ✅ 14 passed | 含 auth/courses/deps/health |
 
+### Phase 2（2026-06-08）
+
+| 用例 | 结果 | 备注 |
+|------|------|------|
+| `pytest -v` | ✅ 23 passed | 含 material_pipeline/vector_store/chat_rag/chat_sse |
+
+### Phase 0-2 打磨回归（2026-06-09）
+
+| 用例 | 结果 | 备注 |
+|------|------|------|
+| `pytest -v` | ✅ 37 passed | 新增 health 组件探活、资料删除/重试测试 |
+| `test_health_returns_200` | ✅ 通过 | 返回 mysql/redis/chroma 组件状态 |
+| `test_retry_failed_material` | ✅ 通过 | FAILED → UPLOADED 并重派任务 |
+| `test_delete_material` | ✅ 通过 | 软删除 + 向量清理 |
 
 ---
 
@@ -118,3 +131,13 @@ pytest tests/test_health.py -v
 | 日期 | 说明 |
 |------|------|
 | 2026-06-08 | Phase 0 骨架创建 |
+| 2026-06-09 | 删除重复 Phase 2 门禁行；补 Phase 2 自测记录；引用 `02_skill.md` |
+| 2026-06-09 | Phase 0-2 问题修复后全量回归 37 passed |
+| 2026-06-09 | 二次复检：含 `test_warehouses.py` 共 45 passed |
+
+### Phase 0-2 二次复检（2026-06-09）
+
+| 用例 | 结果 | 备注 |
+|------|------|------|
+| `pytest -v` | ✅ 45 passed | 含仓库 CRUD、分派、资料名称模糊搜索 |
+| `test_warehouses.py` | ✅ 8 passed | 课程仓手动分派/移出 |

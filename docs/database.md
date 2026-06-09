@@ -31,7 +31,7 @@
 
 ---
 
-## 3. 逻辑外键（skill S7）
+## 3. 逻辑外键（skill S7；Phase 3 迁移见 `02_skill.md` §二.7）
 
 **MySQL 不建立物理 FOREIGN KEY 约束。**
 
@@ -66,7 +66,7 @@ course_student.user_id  →  user.id
 | 用户域 | `user`（Phase 1） | 账号、角色、状态 |
 | 课程域 | `course`、`course_student`、`course_teacher`（Phase 1） | 课程与选课 |
 | 系统域 | `sys_config`、`operation_log`（Phase 1） | 配置与审计 |
-| 资料域 | `course_material`、`material_chunk`（Phase 2） | 知识库 |
+| 资料域 | `course_material`、`material_chunk`、`material_warehouse`（Phase 2+） | 知识库与资料仓库 |
 | 聊天域 | `chat_session`、`chat_message`、`message_citation`（Phase 2） | AI 对话 |
 | 代码域 | `code_submission`、`analysis_result`（Phase 3） | 代码讲解 |
 | 学情域 | `knowledge_point`、`learning_event`、`wrong_question_book`、`user_kp_mastery`（Phase 3） | 学习分析 |
@@ -108,7 +108,23 @@ erDiagram
 
 ---
 
-## 8. 向量存储（ChromaDB，Phase 2）
+## 8. 资料仓库表（Phase 2 增强）
+
+### material_warehouse
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| name | VARCHAR(64) | 仓库名称 |
+| warehouse_kind | ENUM | `file_type` 格式仓 / `course` 课程仓 |
+| course_subject | ENUM | 课程仓：`python` / `java` / `cpp` |
+| material_type | ENUM | 格式仓：pdf / txt / md |
+| icon, color, sort_order | — | 前端展示与排序 |
+
+逻辑外键：`course_material.warehouse_id` → `material_warehouse.id`；`course_material.uploaded_by` → `user.id`。
+
+---
+
+## 9. 向量存储（ChromaDB，Phase 2）
 
 - 持久化目录：`./data/chroma`
 - Metadata 字段：`course_id`、`chunk_id`、`page`
@@ -116,9 +132,11 @@ erDiagram
 
 ---
 
-## 9. 变更记录
+## 10. 变更记录
 
 | 日期 | Phase | 说明 |
 |------|-------|------|
 | 2026-06-08 | 0 | 骨架：命名规范、公共字段、逻辑外键说明 |
 | — | 1 | 待补充：user/course 等表完整 DDL |
+| 2026-06-09 | 2+ | 补充 `material_warehouse` 及 `course_material` 仓库字段 |
+| 2026-06-09 | — | 引用 `02_skill.md`：Phase 3 起迁移仅 Alembic，同步更新本文 |

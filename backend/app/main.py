@@ -5,7 +5,9 @@ from fastapi.responses import JSONResponse
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
+from app.core.db_migrate import ensure_course_schema, ensure_warehouse_schema
 from app.core.exceptions import ERR_VALIDATION, BusinessException
+from app.core.health import collect_health_status
 from app.schemas.response import fail
 
 settings = get_settings()
@@ -44,12 +46,13 @@ def create_app() -> FastAPI:
         return {
             "code": 0,
             "message": "ok",
-            "data": {
-                "status": "healthy",
-                "app": settings.app_name,
-                "env": settings.app_env,
-            },
+            "data": collect_health_status(),
         }
+
+    @app.on_event("startup")
+    def _ensure_db_schema() -> None:
+        ensure_course_schema()
+        ensure_warehouse_schema()
 
     app.include_router(api_router, prefix=settings.api_v1_prefix)
     return app
