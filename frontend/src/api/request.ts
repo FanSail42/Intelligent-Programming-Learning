@@ -35,6 +35,14 @@ request.interceptors.response.use(
         return payload.data as never
       }
 
+      if (payload.code === 40101) {
+        sessionStorage.removeItem('access_token')
+        sessionStorage.removeItem('refresh_token')
+        if (!window.location.pathname.startsWith('/login')) {
+          window.location.href = '/login'
+        }
+      }
+
       ElMessage.error(payload.message || '请求失败')
       return Promise.reject(new Error(payload.message || '请求失败'))
     }

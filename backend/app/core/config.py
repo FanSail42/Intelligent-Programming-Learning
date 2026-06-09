@@ -34,16 +34,24 @@ class Settings(BaseSettings):
     jwt_refresh_token_expire_days: int = 7
 
     llm_api_key: str = ""
-    llm_base_url: str = "https://api.deepseek.com/v1"
-    llm_model: str = "deepseek-chat"
+    llm_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    llm_model: str = "qwen3.6-flash"
 
     embedding_api_key: str = ""
-    embedding_base_url: str = "https://api.openai.com/v1"
-    embedding_model: str = "text-embedding-3-small"
+    embedding_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    embedding_model: str = "text-embedding-v4"
+    embedding_dimensions: int = 1024
 
     chroma_persist_dir: str = "./data/chroma"
     upload_dir: str = "./data/uploads"
     max_upload_size_mb: int = 20
+    llm_daily_limit: int = 100
+    chat_history_max_turns: int = 10
+    celery_broker_url: str = ""
+
+    @property
+    def broker_url(self) -> str:
+        return self.celery_broker_url or self.redis_url
 
     @field_validator("cors_origins", mode="before")
     @classmethod

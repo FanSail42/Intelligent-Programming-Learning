@@ -88,7 +88,8 @@ pytest tests/test_health.py -v
 | Phase | 测试文件 | 状态 |
 |-------|---------|------|
 | 0 | `test_health.py` | ✅ Phase 0 |
-| 1 | `test_auth.py`、`test_courses.py`、`test_deps.py` | 待 Phase 1 |
+| 1 | `test_auth.py`、`test_courses.py`、`test_deps.py` | ✅ Phase 1（14 passed, 2026-06-08） |
+| 2 | `test_material_pipeline.py`、`test_vector_store.py`、`test_chat_rag.py`、`test_chat_sse.py` | ✅ Phase 2（23 passed, 2026-06-08） |
 | 2 | `test_material_pipeline.py`、`test_chat_rag.py` 等 | 待 Phase 2 |
 | 3 | `test_code_analysis.py`、`test_mastery.py` 等 | 待 Phase 3 |
 | 4 | `test_teacher_stats.py`、`test_health.py`（全组件） | 待 Phase 4 |
@@ -103,7 +104,12 @@ pytest tests/test_health.py -v
 |------|------|------|
 | `test_health_returns_200` | ✅ 通过 | GET /health 返回 code=0（2026-06-08） |
 
-> 每完成一个 Phase，在本节追加测试执行记录（日期、命令、通过数/失败数）。
+### Phase 1（2026-06-08）
+
+| 用例 | 结果 | 备注 |
+|------|------|------|
+| `pytest -v` | ✅ 14 passed | 含 auth/courses/deps/health |
+
 
 ---
 
