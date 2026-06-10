@@ -68,8 +68,8 @@ course_student.user_id  →  user.id
 | 系统域 | `sys_config`、`operation_log`（Phase 1） | 配置与审计 |
 | 资料域 | `course_material`、`material_chunk`、`material_warehouse`（Phase 2+） | 知识库与资料仓库 |
 | 聊天域 | `chat_session`、`chat_message`、`message_citation`（Phase 2） | AI 对话 |
-| 代码域 | `code_submission`、`analysis_result`（Phase 3） | 代码讲解 |
-| 学情域 | `knowledge_point`、`learning_event`、`wrong_question_book`、`user_kp_mastery`（Phase 3） | 学习分析 |
+| 代码域 | `code_submission`、`analysis_result`（Phase 3 M05） | 代码讲解 |
+| 学情域 | `knowledge_point`、`learning_event`、`wrong_question_book`、`user_kp_mastery`（Phase 3 M06） | 学习分析 |
 | 教师域 | `class`、`assignment`、`ai_answer_audit` 等（Phase 4） | 教学支持 |
 
 ---
@@ -117,7 +117,7 @@ erDiagram
 | name | VARCHAR(64) | 仓库名称 |
 | warehouse_kind | ENUM | `file_type` 格式仓 / `course` 课程仓 |
 | course_subject | ENUM | 课程仓：`python` / `java` / `cpp` |
-| material_type | ENUM | 格式仓：pdf / txt / md |
+| material_type | ENUM | 格式仓：pdf / txt / md / pptx |
 | icon, color, sort_order | — | 前端展示与排序 |
 
 逻辑外键：`course_material.warehouse_id` → `material_warehouse.id`；`course_material.uploaded_by` → `user.id`。
@@ -132,11 +132,55 @@ erDiagram
 
 ---
 
-## 10. 变更记录
+## 10. 代码讲解表（Phase 3）
+
+### code_submission
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| user_id | BIGINT | 逻辑外键 → user.id |
+| course_id | BIGINT NULL | 预留；M05 不绑定课程，常为 NULL |
+| assignment_id | BIGINT NULL | Phase 4 作业预留 |
+| language | ENUM | c / cpp / python / java |
+| source_code | TEXT | 源码 |
+| version | INT | 同用户全局提交序号 |
+
+### analysis_result
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| submission_id | BIGINT UNIQUE | 逻辑外键 → code_submission.id |
+| status | ENUM | pending / running / done / failed |
+| result_json | JSON | 结构化讲解（见 M05 Schema） |
+| error_message | VARCHAR(512) | 失败原因 |
+
+迁移：`phase5_code_analysis.py`、`phase6_code_optional_course.py`
+
+---
+
+## 11. 学情分析表（Phase 3 M06）
+
+> 详见 `docs/modules/M06_学习分析与推荐.md`。
+
+| 表 | 用途 |
+|----|------|
+| `knowledge_point` | 课程知识点树（course_id, parent_id, name, sort_order） |
+| `learning_event` | 行为埋点（event_type ENUM, payload_json） |
+| `wrong_question_book` | 错题本（source_type + ref_id 幂等） |
+| `user_kp_mastery` | 用户知识点掌握度（score 0～100） |
+
+迁移：`phase7_learning_analysis.py`；MySQL 冷启动兜底 `ensure_learning_schema()`
+
+---
+
+## 12. 变更记录
 
 | 日期 | Phase | 说明 |
 |------|-------|------|
 | 2026-06-08 | 0 | 骨架：命名规范、公共字段、逻辑外键说明 |
 | — | 1 | 待补充：user/course 等表完整 DDL |
-| 2026-06-09 | 2+ | 补充 `material_warehouse` 及 `course_material` 仓库字段 |
+| 2026-06-10 | 2+ | `material_type` / `course_material.type` 扩展 `pptx`；新增 PPTX 演示库 |
 | 2026-06-09 | — | 引用 `02_skill.md`：Phase 3 起迁移仅 Alembic，同步更新本文 |
+| 2026-06-10 | 3 | 补充 `code_submission`、`analysis_result` |
+| 2026-06-10 | 3 | M05 字段同步：course_id 可空、四语言、phase6 |
+| 2026-06-10 | 3 | M06 学情四表落地（phase7 + ensure_learning_schema） |

@@ -10,6 +10,7 @@ class MaterialType(str, enum.Enum):
     pdf = "pdf"
     txt = "txt"
     md = "md"
+    pptx = "pptx"
 
 
 class MaterialStatus(str, enum.Enum):

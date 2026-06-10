@@ -41,6 +41,30 @@ const router = createRouter({
           meta: { roles: ['student'] },
         },
         {
+          path: 'student/code',
+          name: 'student-code',
+          component: () => import('@/views/student/StudentCode.vue'),
+          meta: { roles: ['student'] },
+        },
+        {
+          path: 'student/code/history',
+          name: 'student-code-history',
+          component: () => import('@/views/student/StudentCodeHistory.vue'),
+          meta: { roles: ['student'] },
+        },
+        {
+          path: 'student/dashboard',
+          name: 'student-dashboard',
+          component: () => import('@/views/student/StudentDashboard.vue'),
+          meta: { roles: ['student'] },
+        },
+        {
+          path: 'student/wrong-book',
+          name: 'student-wrong-book',
+          component: () => import('@/views/student/StudentWrongBook.vue'),
+          meta: { roles: ['student'] },
+        },
+        {
           path: 'teacher/courses',
           name: 'teacher-courses',
           component: () => import('@/views/teacher/TeacherCourseList.vue'),

@@ -1,3 +1,4 @@
+import json
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,6 +35,27 @@ def validate_user_input(content: str) -> None:
     for pattern in DANGEROUS_PATTERNS:
         if pattern in lowered:
             raise ValueError("输入包含不允许的内容")
+
+
+def _chunks_from_stream_payload(chunk: dict) -> list[LlmStreamChunk]:
+    """Parse one OpenAI-compatible SSE JSON chunk; skip heartbeat / empty choices."""
+    choices = chunk.get("choices")
+    if not choices:
+        return []
+    first = choices[0]
+    if not isinstance(first, dict):
+        return []
+    delta = first.get("delta")
+    if not isinstance(delta, dict):
+        return []
+    out: list[LlmStreamChunk] = []
+    reasoning = delta.get("reasoning_content")
+    content = delta.get("content")
+    if reasoning:
+        out.append(LlmStreamChunk("reasoning", reasoning))
+    if content:
+        out.append(LlmStreamChunk("content", content))
+    return out
 
 
 def build_rag_prompt(
@@ -86,19 +108,42 @@ async def stream_llm(messages: list[dict]) -> AsyncIterator[LlmStreamChunk]:
             async for line in resp.aiter_lines():
                 if not line or not line.startswith("data: "):
                     continue
-                data = line[6:]
-                if data == "[DONE]":
-                    break
-                import json
+                data = line[6:].strip()
+                if not data or data == "[DONE]":
+                    if data == "[DONE]":
+                        break
+                    continue
+                try:
+                    chunk = json.loads(data)
+                except json.JSONDecodeError:
+                    logger.warning("llm_stream_invalid_json", line=data[:120])
+                    continue
+                for part in _chunks_from_stream_payload(chunk):
+                    yield part
 
-                chunk = json.loads(data)
-                delta = chunk["choices"][0]["delta"]
-                reasoning = delta.get("reasoning_content")
-                content = delta.get("content")
-                if reasoning:
-                    yield LlmStreamChunk("reasoning", reasoning)
-                if content:
-                    yield LlmStreamChunk("content", content)
+
+async def invoke_llm(messages: list[dict]) -> str:
+    """Non-streaming completion; returns assistant text or empty when unconfigured."""
+    api_key = settings.llm_api_key
+    if not api_key:
+        return ""
+
+    url = f"{settings.llm_base_url.rstrip('/')}/chat/completions"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    payload = {
+        "model": settings.llm_model,
+        "messages": messages,
+        "stream": False,
+    }
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(url, json=payload, headers=headers)
+        resp.raise_for_status()
+        data = resp.json()
+        choices = data.get("choices") or []
+        if not choices:
+            return ""
+        message = choices[0].get("message") or {}
+        return message.get("content") or ""
 
 
 async def log_llm_invoke(*, user_id: int, scene: str, model: str, tokens: int = 0) -> None:

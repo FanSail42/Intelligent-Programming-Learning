@@ -87,7 +87,12 @@ def seed_users(db_session):
 @pytest.fixture
 def seed_warehouses(db_session):
     warehouses = []
-    for name, mtype in [("PDF库", MaterialType.pdf), ("TXT库", MaterialType.txt), ("MD库", MaterialType.md)]:
+    for name, mtype in [
+        ("PDF库", MaterialType.pdf),
+        ("TXT库", MaterialType.txt),
+        ("MD库", MaterialType.md),
+        ("PPTX库", MaterialType.pptx),
+    ]:
         wh = MaterialWarehouse(
             name=name,
             warehouse_kind=WarehouseKind.file_type,

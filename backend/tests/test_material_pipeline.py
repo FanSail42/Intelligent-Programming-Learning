@@ -210,3 +210,186 @@ async def test_student_cannot_download_material(
         headers={"Authorization": f"Bearer {tokens['access_token']}"},
     )
     assert resp.json()["code"] == 40301
+
+
+@pytest.mark.asyncio
+async def test_upload_duplicate_same_course_rejected(
+    client, seed_users, seed_course, seed_warehouses, tmp_path
+):
+    teacher = seed_users["teacher"]
+    tokens = await login(client, teacher.username, "Teacher123!")
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+    content = b"# dup\n" * 10
+
+    with patch("app.api.v1.materials._dispatch_process"):
+        resp1 = await client.post(
+            "/api/v1/materials/upload",
+            headers=headers,
+            data={"course_id": str(seed_course.id)},
+            files={"file": ("dup.md", content, "text/markdown")},
+        )
+        assert resp1.json()["code"] == 0
+
+        resp2 = await client.post(
+            "/api/v1/materials/upload",
+            headers=headers,
+            data={"course_id": str(seed_course.id)},
+            files={"file": ("dup.md", content, "text/markdown")},
+        )
+        body = resp2.json()
+        assert body["code"] == 40002
+        assert "已存在" in body["message"]
+
+
+@pytest.mark.asyncio
+async def test_upload_links_existing_material_other_course(
+    client, db_session, seed_users, seed_course, seed_warehouses, tmp_path
+):
+    from app.models.course import Course
+
+    teacher = seed_users["teacher"]
+    tokens = await login(client, teacher.username, "Teacher123!")
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    other = Course(
+        name="Other Course",
+        description="",
+        teacher_id=teacher.id,
+        status="published",
+        create_approval="approved",
+        publish_approval="approved",
+    )
+    db_session.add(other)
+    db_session.commit()
+    db_session.refresh(other)
+
+    content = b"# shared\n" * 10
+    with patch("app.api.v1.materials._dispatch_process"):
+        resp1 = await client.post(
+            "/api/v1/materials/upload",
+            headers=headers,
+            data={"course_id": str(seed_course.id)},
+            files={"file": ("shared.md", content, "text/markdown")},
+        )
+        assert resp1.json()["code"] == 0
+
+        resp2 = await client.post(
+            "/api/v1/materials/upload",
+            headers=headers,
+            data={"course_id": str(other.id)},
+            files={"file": ("shared.md", content, "text/markdown")},
+        )
+        body = resp2.json()
+        assert body["code"] == 0
+        assert body["data"]["linked"] is True
+
+
+@pytest.mark.asyncio
+async def test_upload_rejects_oversized_file(client, seed_users, seed_course, seed_warehouses):
+    from app.api.v1 import materials as materials_api
+
+    teacher = seed_users["teacher"]
+    tokens = await login(client, teacher.username, "Teacher123!")
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    original_limit = materials_api.settings.max_upload_size_mb
+    materials_api.settings.max_upload_size_mb = 1
+    try:
+        content = b"x" * (1024 * 1024 + 1)
+        resp = await client.post(
+            "/api/v1/materials/upload",
+            headers=headers,
+            data={"course_id": str(seed_course.id)},
+            files={"file": ("big.txt", content, "text/plain")},
+        )
+    finally:
+        materials_api.settings.max_upload_size_mb = original_limit
+
+    body = resp.json()
+    assert body["code"] == 40001
+    assert "1MB" in body["message"]
+
+
+@pytest.mark.asyncio
+async def test_upload_rejects_invalid_pdf(client, seed_users, seed_course, seed_warehouses):
+    teacher = seed_users["teacher"]
+    tokens = await login(client, teacher.username, "Teacher123!")
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    resp = await client.post(
+        "/api/v1/materials/upload",
+        headers=headers,
+        data={"course_id": str(seed_course.id)},
+        files={"file": ("fake.pdf", b"not a pdf", "application/pdf")},
+    )
+    body = resp.json()
+    assert body["code"] == 40001
+    assert "PDF" in body["message"]
+
+
+def test_process_material_clones_ready_source(db_session, seed_course, tmp_path):
+    file_path = tmp_path / "shared.md"
+    file_path.write_text("# Shared\n" + "line\n" * 30, encoding="utf-8")
+
+    source = CourseMaterial(
+        course_id=seed_course.id,
+        type=MaterialType.md,
+        file_path=str(file_path),
+        original_name="shared.md",
+        status=MaterialStatus.ready,
+    )
+    db_session.add(source)
+    db_session.commit()
+    db_session.refresh(source)
+
+    chroma_dir = tempfile.mkdtemp()
+    with patch("app.services.material_pipeline.get_vector_store") as mock_vs:
+        from app.services.vector_store import VectorStore
+
+        store = VectorStore(persist_dir=chroma_dir)
+        mock_vs.return_value = store
+        process_material(source.id)
+
+    db_session.refresh(source)
+    assert source.status == MaterialStatus.ready
+
+    target = CourseMaterial(
+        course_id=seed_course.id,
+        type=MaterialType.md,
+        file_path=str(file_path),
+        original_name="shared.md",
+        status=MaterialStatus.uploaded,
+    )
+    db_session.add(target)
+    db_session.commit()
+    db_session.refresh(target)
+
+    with patch("app.services.material_pipeline.get_vector_store") as mock_vs:
+        from app.services.vector_store import VectorStore
+
+        store = VectorStore(persist_dir=chroma_dir)
+        mock_vs.return_value = store
+        with patch("app.services.material_pipeline.asyncio.run") as mock_run:
+            process_material(target.id)
+            mock_run.assert_not_called()
+
+    db_session.refresh(target)
+    assert target.status == MaterialStatus.ready
+
+
+def test_parse_pptx_extracts_text(tmp_path):
+    pytest.importorskip("pptx")
+    from pptx import Presentation
+
+    from app.models.material import MaterialType
+    from app.services.document_parser import parse_document
+
+    path = tmp_path / "demo.pptx"
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[5])
+    slide.shapes.title.text = "Hello PPT"
+    prs.save(str(path))
+
+    blocks = parse_document(str(path), MaterialType.pptx)
+    assert len(blocks) == 1
+    assert "Hello PPT" in blocks[0].text

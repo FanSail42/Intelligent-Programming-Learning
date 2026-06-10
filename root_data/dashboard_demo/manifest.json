@@ -1,0 +1,41 @@
+{
+  "generated_at": "2026-06-10T23:21:50",
+  "description": "学习仪表盘三类课程联调演示数据",
+  "student": "stu",
+  "courses": [
+    {
+      "id": 63,
+      "name": "C++ 数据结构与算法",
+      "key": "cpp",
+      "materials": 6,
+      "wrong_code": 15,
+      "wrong_chat": 5,
+      "events": 35
+    },
+    {
+      "id": 64,
+      "name": "Python 数据分析",
+      "key": "python",
+      "materials": 6,
+      "wrong_code": 12,
+      "wrong_chat": 4,
+      "events": 28
+    },
+    {
+      "id": 65,
+      "name": "Java 面向对象编程",
+      "key": "java",
+      "materials": 6,
+      "wrong_code": 8,
+      "wrong_chat": 3,
+      "events": 19
+    }
+  ],
+  "totals": {
+    "wrong_code": 35,
+    "wrong_chat": 12,
+    "materials": 18,
+    "events": 82,
+    "wrong_all": 47
+  }
+}

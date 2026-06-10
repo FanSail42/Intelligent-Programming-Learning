@@ -12,6 +12,21 @@ export interface Material {
   created_at: string
 }
 
+export class MaterialUploadError extends Error {
+  code: number
+  data?: unknown
+
+  constructor(message: string, code: number, data?: unknown) {
+    super(message)
+    this.name = 'MaterialUploadError'
+    this.code = code
+    this.data = data
+  }
+}
+
+export const MATERIAL_DUPLICATE_CODE = 40002
+export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
 export function listMaterials(courseId: number): Promise<Material[]> {
   return request.get('/api/v1/materials', { params: { course_id: courseId } })
 }
@@ -54,7 +69,10 @@ export async function downloadMaterial(materialId: number, filename: string): Pr
   URL.revokeObjectURL(url)
 }
 
-export async function uploadMaterial(courseId: number, file: File): Promise<{ material_id: number }> {
+export async function uploadMaterial(
+  courseId: number,
+  file: File,
+): Promise<{ material_id: number; linked?: boolean }> {
   const form = new FormData()
   form.append('course_id', String(courseId))
   form.append('file', file)
@@ -68,7 +86,7 @@ export async function uploadMaterial(courseId: number, file: File): Promise<{ ma
   })
   const data = await resp.json()
   if (data.code !== 0) {
-    throw new Error(data.message || '上传失败')
+    throw new MaterialUploadError(data.message || '上传失败', data.code, data.data)
   }
   return data.data
 }

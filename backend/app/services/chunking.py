@@ -1,4 +1,5 @@
 from app.services.document_parser import ParsedBlock
+from app.core.config import get_settings
 
 
 def estimate_tokens(text: str) -> int:
@@ -7,10 +8,13 @@ def estimate_tokens(text: str) -> int:
 
 def chunk_blocks(
     blocks: list[ParsedBlock],
-    chunk_size: int = 512,
-    overlap: int = 50,
+    chunk_size: int | None = None,
+    overlap: int | None = None,
 ) -> list[tuple[str, int | None, int]]:
     """Return list of (text, source_page, token_count)."""
+    settings = get_settings()
+    chunk_size = chunk_size if chunk_size is not None else settings.material_chunk_size
+    overlap = overlap if overlap is not None else settings.material_chunk_overlap
     char_size = chunk_size * 4
     char_overlap = overlap * 4
     results: list[tuple[str, int | None, int]] = []

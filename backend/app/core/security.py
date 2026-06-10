@@ -83,7 +83,9 @@ class InMemoryRedis:
 
     def __init__(self) -> None:
         self._store: dict[str, tuple[str, float | None]] = {}
+        self._lists: dict[str, list[str]] = {}
         self._lock = threading.Lock()
+        self._list_ready = threading.Condition(self._lock)
 
     def set(self, key: str, value: str, ex: int | None = None) -> None:
         expire_at = time.time() + ex if ex else None
@@ -104,12 +106,41 @@ class InMemoryRedis:
     def delete(self, key: str) -> None:
         with self._lock:
             self._store.pop(key, None)
+            self._lists.pop(key, None)
 
     def exists(self, key: str) -> bool:
         return self.get(key) is not None
 
     def ping(self) -> bool:
         return True
+
+    def lpush(self, key: str, *values: str) -> int:
+        with self._list_ready:
+            bucket = self._lists.setdefault(key, [])
+            for value in reversed(values):
+                bucket.insert(0, value)
+            self._list_ready.notify_all()
+            return len(bucket)
+
+    def brpop(self, keys: str | list[str], timeout: int = 0) -> tuple[str, str] | None:
+        key_list = [keys] if isinstance(keys, str) else list(keys)
+        deadline = time.time() + timeout if timeout else None
+        with self._list_ready:
+            while True:
+                for key in key_list:
+                    bucket = self._lists.get(key, [])
+                    if bucket:
+                        return key, bucket.pop()
+                if timeout == 0:
+                    return None
+                remaining = (deadline or 0) - time.time()
+                if remaining <= 0:
+                    return None
+                self._list_ready.wait(timeout=remaining)
+
+
+def redis_supports_queue(client: Any) -> bool:
+    return callable(getattr(client, "lpush", None)) and callable(getattr(client, "brpop", None))
 
 
 _redis_client: Any = None
@@ -128,7 +159,11 @@ def get_redis() -> Any:
     try:
         import redis
 
-        client = redis.from_url(settings.redis_url, decode_responses=True)
+        client = redis.from_url(
+            settings.redis_url,
+            decode_responses=True,
+            protocol=2,
+        )
         client.ping()
         _redis_client = client
     except Exception:

@@ -44,10 +44,24 @@ class Settings(BaseSettings):
 
     chroma_persist_dir: str = "./data/chroma"
     upload_dir: str = "./data/uploads"
-    max_upload_size_mb: int = 20
+    max_upload_size_mb: int = 10
+    material_dispatch_mode: str = "redis"  # redis | thread | celery
+    material_process_workers: int = 4
+    embedding_concurrent_batches: int = 5
+    material_chunk_size: int = 768
+    material_chunk_overlap: int = 64
     llm_daily_limit: int = 100
     chat_history_max_turns: int = 10
+    code_max_source_chars: int = 16384
     celery_broker_url: str = ""
+
+    # Aliyun OSS (optional; empty = local disk storage)
+    oss_enabled: bool = False
+    oss_access_key_id: str = ""
+    oss_access_key_secret: str = ""
+    oss_endpoint: str = ""
+    oss_bucket: str = ""
+    oss_prefix: str = "materials/"
 
     @property
     def broker_url(self) -> str:

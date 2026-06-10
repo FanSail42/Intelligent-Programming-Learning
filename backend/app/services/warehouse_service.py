@@ -4,8 +4,17 @@ from app.core.exceptions import ERR_NOT_FOUND, BusinessException
 from app.models.material import CourseMaterial, MaterialType
 from app.models.warehouse import MaterialWarehouse, WarehouseKind
 
+_WAREHOUSE_BY_TYPE: dict[MaterialType, int] = {}
+
+
+def clear_warehouse_cache() -> None:
+    _WAREHOUSE_BY_TYPE.clear()
+
 
 def resolve_warehouse_for_type(db: Session, material_type: MaterialType) -> int:
+    cached = _WAREHOUSE_BY_TYPE.get(material_type)
+    if cached is not None:
+        return cached
     warehouse = (
         db.query(MaterialWarehouse)
         .filter(
@@ -18,6 +27,7 @@ def resolve_warehouse_for_type(db: Session, material_type: MaterialType) -> int:
     )
     if not warehouse:
         raise BusinessException(40001, f"未配置 {material_type.value} 类型资料仓库，请联系管理员")
+    _WAREHOUSE_BY_TYPE[material_type] = warehouse.id
     return warehouse.id
 
 

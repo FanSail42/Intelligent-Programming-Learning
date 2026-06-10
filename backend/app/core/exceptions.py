@@ -11,6 +11,7 @@ class BusinessException(Exception):
 
 # Error codes (see docs/api-convention.md)
 ERR_VALIDATION = 40001
+ERR_MATERIAL_DUPLICATE = 40002
 ERR_UNAUTHORIZED = 40101
 ERR_FORBIDDEN = 40301
 ERR_NOT_FOUND = 40401

@@ -142,17 +142,55 @@ SSE 响应 **不** 使用统一 `{code, message, data}` 包装；错误通过 `e
 
 ---
 
-## 7. 文件上传（Phase 2）
+## 7. 代码讲解（Phase 3 M05）
+
+### 7.1 提交分析
+
+```
+POST /api/v1/code/submit
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+Body：
+
+```json
+{
+  "language": "python",
+  "source_code": "print(1)"
+}
+```
+
+- `language`：`c` | `cpp` | `python` | `java`
+- 无需 `course_id`；成功时 `data` 含 `submission` + `analysis`
+
+### 7.2 查询结果
+
+```
+GET /api/v1/code/submit/{submission_id}/result
+```
+
+### 7.3 提交历史
+
+```
+GET /api/v1/code/submissions?page_num=1&page_size=10
+```
+
+分页响应同 §2.2 `PageResult` 结构；列表项含 `language`、`version`、`status`、`summary`。
+
+---
+
+## 8. 文件上传（Phase 2）
 
 - `Content-Type: multipart/form-data`
 - 字段名：`file`
 - 附加字段：`course_id`（int）
-- 白名单：`pdf`、`txt`、`md`
-- 单文件上限：20MB
+- 白名单：`pdf`、`txt`、`md`、`pptx`
+- 单文件上限：10MB
 
 ---
 
-## 8. 前端 Axios 拦截器约定
+## 9. 前端 Axios 拦截器约定
 
 1. 请求拦截：自动附加 `Authorization` Header  
 2. 响应拦截：`code === 0` 时返回 `data`；`code !== 0` 时 ElMessage 提示并 reject  
@@ -160,8 +198,9 @@ SSE 响应 **不** 使用统一 `{code, message, data}` 包装；错误通过 `e
 
 ---
 
-## 9. 变更记录
+## 10. 变更记录
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
 | 2026-06-08 | 0.1 | Phase 0 初版创建 |
+| 2026-06-10 | 0.2 | 补充 M05 代码讲解 API §7 |

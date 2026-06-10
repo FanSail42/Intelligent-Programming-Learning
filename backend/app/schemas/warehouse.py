@@ -8,7 +8,7 @@ class WarehouseCreate(BaseModel):
     description: str | None = None
     warehouse_kind: str = Field(default="file_type", pattern="^(file_type|course)$")
     course_subject: str | None = Field(default=None, pattern="^(python|java|cpp)$")
-    material_type: str = Field(default="pdf", pattern="^(pdf|txt|md)$")
+    material_type: str = Field(default="pdf", pattern="^(pdf|txt|md|pptx)$")
     icon: str = Field(default="📦", max_length=32)
     color: str = Field(default="#409eff", max_length=16)
     sort_order: int = Field(default=0, ge=0)
@@ -17,7 +17,7 @@ class WarehouseCreate(BaseModel):
 class WarehouseUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=64)
     description: str | None = None
-    material_type: str | None = Field(default=None, pattern="^(pdf|txt|md)$")
+    material_type: str | None = Field(default=None, pattern="^(pdf|txt|md|pptx)$")
     icon: str | None = Field(default=None, max_length=32)
     color: str | None = Field(default=None, max_length=16)
     sort_order: int | None = Field(default=None, ge=0)

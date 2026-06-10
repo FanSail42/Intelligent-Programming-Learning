@@ -53,15 +53,35 @@ class VectorStore:
         documents: list[str],
         metadatas: list[dict[str, Any]],
     ) -> None:
-        self._collection.upsert(
-            ids=ids,
-            embeddings=embeddings,
-            documents=documents,
-            metadatas=metadatas,
-        )
+        batch_size = 500
+        for start in range(0, len(ids), batch_size):
+            end = start + batch_size
+            self._collection.upsert(
+                ids=ids[start:end],
+                embeddings=embeddings[start:end],
+                documents=documents[start:end],
+                metadatas=metadatas[start:end],
+            )
 
     def delete_by_material(self, material_id: int) -> None:
         self._collection.delete(where={"material_id": material_id})
+
+    def fetch_embeddings(
+        self,
+        ids: list[str],
+    ) -> dict[str, list[float]]:
+        if not ids:
+            return {}
+        result = self._collection.get(ids=ids, include=["embeddings"])
+        found_ids = result.get("ids") or []
+        embeddings = result.get("embeddings")
+        if embeddings is None:
+            return {}
+        return {
+            chunk_id: list(embedding)
+            for chunk_id, embedding in zip(found_ids, embeddings)
+            if embedding is not None
+        }
 
     def query(
         self,

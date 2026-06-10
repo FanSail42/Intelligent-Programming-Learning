@@ -11,6 +11,7 @@ from app.core.deps import CurrentUser, DbSession
 from app.core.exceptions import ERR_NOT_FOUND, BusinessException
 from app.core.rate_limit import check_llm_rate_limit
 from app.models.chat import ChatMessage, ChatSession, MessageCitation, MessageRole
+from app.models.learning import KnowledgePoint
 from app.models.user import User, UserRole
 from app.schemas.chat import MessageCreate, MessageOut, SessionCreate, SessionOut
 from app.schemas.response import success
@@ -22,6 +23,7 @@ from app.services.llm_service import (
     stream_llm,
     validate_user_input,
 )
+from app.services.learning_events import after_chat_no_context
 from app.services.rag import retrieve_chunks
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -272,6 +274,7 @@ async def send_message(
         from app.core.database import SessionLocal
 
         full_parts: list[str] = []
+        citations: list[dict] = []
         try:
             async for chunk in stream_llm(messages):
                 if chunk.kind == "reasoning":
@@ -310,6 +313,25 @@ async def send_message(
                     save_db.add(cite)
                     citations.append(item)
                 save_db.commit()
+                if no_context:
+                    kp = (
+                        save_db.query(KnowledgePoint)
+                        .filter(
+                            KnowledgePoint.course_id == session.course_id,
+                            KnowledgePoint.deleted == 0,
+                        )
+                        .order_by(KnowledgePoint.sort_order.asc())
+                        .first()
+                    )
+                    after_chat_no_context(
+                        save_db,
+                        user_id=user.id,
+                        course_id=session.course_id,
+                        session_id=session.id,
+                        message_id=assistant_msg.id,
+                        kp_id=kp.id if kp else None,
+                    )
+                    save_db.commit()
             finally:
                 save_db.close()
 

@@ -37,12 +37,22 @@ def check_chroma() -> str:
         return f"error: {exc}"
 
 
+def check_pptx_parser() -> str:
+    try:
+        import pptx  # noqa: F401
+
+        return "ok"
+    except ImportError as exc:
+        return f"error: python-pptx not installed ({exc})"
+
+
 def collect_health_status() -> dict:
     settings = get_settings()
     components = {
         "mysql": check_mysql(),
         "redis": check_redis(),
         "chroma": check_chroma(),
+        "pptx_parser": check_pptx_parser(),
     }
     all_ok = all(status == "ok" for status in components.values())
     return {

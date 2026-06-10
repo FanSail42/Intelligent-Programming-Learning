@@ -114,6 +114,7 @@ export async function streamChatMessage(
         session_title: parsed.session_title,
       })
     } else if (parsed.reasoning_delta && onReasoningDelta) {
+      receivedContent = true
       onReasoningDelta(parsed.reasoning_delta)
     } else if (parsed.delta) {
       receivedContent = true

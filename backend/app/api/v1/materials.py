@@ -3,17 +3,24 @@ from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Query, UploadFile
 from fastapi.responses import FileResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import get_settings
 from app.core.deps import DbSession, require_roles
-from app.core.exceptions import ERR_NOT_FOUND, BusinessException
+from app.core.exceptions import ERR_INTERNAL, ERR_NOT_FOUND, BusinessException
 from app.core.security import get_redis
 from app.models.material import CourseMaterial, MaterialChunk, MaterialStatus, MaterialType
 from app.models.user import User, UserRole
 from app.schemas.material import MaterialOut, MaterialStatusOut
 from app.schemas.response import success
 from app.services.course_access import ensure_teacher_course_access
-from app.services.material_pipeline import process_material_async
+from app.services.material_dispatch import dispatch_material_processing
+from app.services.material_upload import (
+    check_duplicate_or_linkable,
+    normalize_original_name,
+    remove_upload_file,
+    validate_upload_content,
+)
 from app.services.vector_store import get_vector_store
 from app.services.warehouse_service import resolve_warehouse_for_type
 
@@ -22,12 +29,20 @@ settings = get_settings()
 
 TeacherOrAdmin = Depends(require_roles(UserRole.teacher, UserRole.admin))
 
-ALLOWED_EXT = {".pdf": MaterialType.pdf, ".txt": MaterialType.txt, ".md": MaterialType.md}
+ALLOWED_EXT = {
+    ".pdf": MaterialType.pdf,
+    ".txt": MaterialType.txt,
+    ".md": MaterialType.md,
+    ".pptx": MaterialType.pptx,
+}
 
 MEDIA_TYPES = {
     MaterialType.pdf: "application/pdf",
     MaterialType.txt: "text/plain; charset=utf-8",
     MaterialType.md: "text/markdown; charset=utf-8",
+    MaterialType.pptx: (
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    ),
 }
 
 
@@ -56,12 +71,40 @@ def _resolve_material_file(material: CourseMaterial) -> Path:
 
 
 def _dispatch_process(material_id: int, background_tasks: BackgroundTasks) -> None:
-    try:
-        from app.tasks.material_tasks import process_material_task
+    background_tasks.add_task(dispatch_material_processing, material_id)
 
-        process_material_task.delay(material_id)
+
+def _create_material_record(
+    db: DbSession,
+    *,
+    course_id: int,
+    user_id: int,
+    mat_type: MaterialType,
+    file_path: str,
+    original_name: str,
+) -> CourseMaterial:
+    warehouse_id = resolve_warehouse_for_type(db, mat_type)
+    material = CourseMaterial(
+        course_id=course_id,
+        warehouse_id=warehouse_id,
+        uploaded_by=user_id,
+        type=mat_type,
+        file_path=file_path,
+        original_name=original_name,
+        status=MaterialStatus.uploaded,
+    )
+    db.add(material)
+    db.commit()
+    db.refresh(material)
+    try:
+        get_redis().set(
+            f"material:status:{material.id}",
+            MaterialStatus.uploaded.value,
+            ex=86400,
+        )
     except Exception:
-        background_tasks.add_task(process_material_async, material_id)
+        pass
+    return material
 
 
 @router.post("/upload")
@@ -74,41 +117,70 @@ async def upload_material(
 ):
     ensure_teacher_course_access(db, user, course_id)
 
-    suffix = Path(file.filename or "").suffix.lower()
+    original_name = normalize_original_name(file.filename or "")
+    suffix = Path(original_name).suffix.lower()
     if suffix not in ALLOWED_EXT:
-        raise BusinessException(40001, "仅支持 pdf、txt、md 文件")
+        raise BusinessException(
+            40001,
+            "仅支持 pdf、txt、md、pptx 文件；PPT 请另存为 .pptx 或直接上传 .pptx",
+        )
 
     content = await file.read()
+    mat_type = ALLOWED_EXT[suffix]
     max_bytes = settings.max_upload_size_mb * 1024 * 1024
-    if len(content) > max_bytes:
-        raise BusinessException(40001, f"文件大小不能超过 {settings.max_upload_size_mb}MB")
+
+    try:
+        validate_upload_content(content, mat_type, max_bytes)
+    except BusinessException:
+        raise
+    except Exception as exc:
+        raise BusinessException(40001, f"文件校验失败：{exc}") from exc
+
+    link_source = check_duplicate_or_linkable(db, original_name, course_id)
+    if link_source:
+        material = _create_material_record(
+            db,
+            course_id=course_id,
+            user_id=user.id,
+            mat_type=link_source.type,
+            file_path=link_source.file_path,
+            original_name=original_name,
+        )
+        _dispatch_process(material.id, background_tasks)
+        return success(
+            {"material_id": material.id, "linked": True},
+            message="检测到同名资料已存在，已关联到本课程，无需重复上传文件",
+        )
 
     upload_root = Path(settings.upload_dir)
     upload_root.mkdir(parents=True, exist_ok=True)
     stored_name = f"{uuid.uuid4().hex}{suffix}"
     file_path = upload_root / stored_name
-    file_path.write_bytes(content)
 
-    mat_type = ALLOWED_EXT[suffix]
-    warehouse_id = resolve_warehouse_for_type(db, mat_type)
+    try:
+        file_path.write_bytes(content)
+        material = _create_material_record(
+            db,
+            course_id=course_id,
+            user_id=user.id,
+            mat_type=mat_type,
+            file_path=str(file_path),
+            original_name=original_name,
+        )
+    except BusinessException:
+        remove_upload_file(file_path)
+        raise
+    except SQLAlchemyError as exc:
+        db.rollback()
+        remove_upload_file(file_path)
+        raise BusinessException(ERR_INTERNAL, f"上传失败：数据库保存异常，请重新上传") from exc
+    except Exception as exc:
+        db.rollback()
+        remove_upload_file(file_path)
+        raise BusinessException(ERR_INTERNAL, f"上传失败：{exc}，请重新上传") from exc
 
-    material = CourseMaterial(
-        course_id=course_id,
-        warehouse_id=warehouse_id,
-        uploaded_by=user.id,
-        type=mat_type,
-        file_path=str(file_path),
-        original_name=file.filename or stored_name,
-        status=MaterialStatus.uploaded,
-    )
-    db.add(material)
-    db.commit()
-    db.refresh(material)
-
-    get_redis().set(f"material:status:{material.id}", MaterialStatus.uploaded.value, ex=86400)
     _dispatch_process(material.id, background_tasks)
-
-    return success({"material_id": material.id})
+    return success({"material_id": material.id, "linked": False})
 
 
 @router.get("/{material_id}/download")

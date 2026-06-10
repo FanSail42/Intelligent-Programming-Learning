@@ -5,10 +5,17 @@ from fastapi.responses import JSONResponse
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
-from app.core.db_migrate import ensure_course_schema, ensure_warehouse_schema
+from app.core.db_migrate import (
+    ensure_code_schema,
+    ensure_course_schema,
+    ensure_learning_schema,
+    ensure_material_schema,
+    ensure_warehouse_schema,
+)
 from app.core.exceptions import ERR_VALIDATION, BusinessException
 from app.core.health import collect_health_status
 from app.schemas.response import fail
+from app.services.material_queue import ensure_queue_consumer
 
 settings = get_settings()
 
@@ -52,7 +59,10 @@ def create_app() -> FastAPI:
     @app.on_event("startup")
     def _ensure_db_schema() -> None:
         ensure_course_schema()
-        ensure_warehouse_schema()
+        ensure_material_schema()
+        ensure_code_schema()
+        ensure_learning_schema()
+        ensure_queue_consumer()
 
     app.include_router(api_router, prefix=settings.api_v1_prefix)
     return app

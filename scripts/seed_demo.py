@@ -88,6 +88,7 @@ def seed() -> None:
             ("PDF 文献库", "存放 PDF 格式课程资料", MaterialType.pdf, "📕", "#e74c3c", 1),
             ("TXT 文本库", "存放 TXT 格式课程资料", MaterialType.txt, "📄", "#3498db", 2),
             ("MD 笔记库", "存放 Markdown 格式课程资料", MaterialType.md, "📝", "#2ecc71", 3),
+            ("PPTX 演示库", "存放 PPT/PPTX 格式课程资料", MaterialType.pptx, "📊", "#9b59b6", 4),
         ]:
             wh = (
                 db.query(MaterialWarehouse)

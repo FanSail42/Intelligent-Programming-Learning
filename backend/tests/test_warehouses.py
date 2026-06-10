@@ -16,7 +16,7 @@ async def test_list_warehouses(client, seed_users, seed_warehouses):
     )
     body = resp.json()
     assert body["code"] == 0
-    assert len(body["data"]) == 6
+    assert len(body["data"]) == 7
 
 
 @pytest.mark.asyncio
@@ -196,3 +196,50 @@ async def test_upload_assigns_warehouse(client, seed_users, seed_course, seed_wa
             files={"file": ("note.md", content, "text/markdown")},
         )
     assert resp.json()["code"] == 0
+
+
+@pytest.mark.asyncio
+async def test_upload_pptx_assigns_pptx_warehouse(
+    client, db_session, seed_users, seed_course, seed_warehouses
+):
+    pytest.importorskip("pptx")
+    import tempfile
+    from pathlib import Path
+
+    from pptx import Presentation
+
+    from app.models.material import CourseMaterial
+
+    teacher = seed_users["teacher"]
+    tokens = await login(client, teacher.username, "Teacher123!")
+    pptx_wh = next(w for w in seed_warehouses if w.material_type == MaterialType.pptx)
+
+    path = Path(tempfile.mkdtemp()) / "slide.pptx"
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[5])
+    slide.shapes.title.text = "warehouse test"
+    prs.save(str(path))
+    content = path.read_bytes()
+
+    with patch("app.api.v1.materials._dispatch_process"):
+        resp = await client.post(
+            "/api/v1/materials/upload",
+            headers={"Authorization": f"Bearer {tokens['access_token']}"},
+            data={"course_id": str(seed_course.id)},
+            files={
+                "file": (
+                    "slide.pptx",
+                    content,
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                )
+            },
+        )
+    assert resp.json()["code"] == 0
+    material = (
+        db_session.query(CourseMaterial)
+        .filter(CourseMaterial.id == resp.json()["data"]["material_id"])
+        .first()
+    )
+    assert material is not None
+    assert material.warehouse_id == pptx_wh.id
+    assert material.type == MaterialType.pptx

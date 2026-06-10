@@ -43,6 +43,7 @@ const typeOptions = [
   { label: 'PDF', value: 'pdf', icon: '📕', color: '#e74c3c' },
   { label: 'TXT', value: 'txt', icon: '📄', color: '#3498db' },
   { label: 'MD', value: 'md', icon: '📝', color: '#2ecc71' },
+  { label: 'PPTX', value: 'pptx', icon: '📊', color: '#9b59b6' },
 ]
 
 const subjectOptions = [

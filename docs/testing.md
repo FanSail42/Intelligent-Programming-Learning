@@ -89,8 +89,9 @@ pytest tests/test_health.py -v
 |-------|---------|------|
 | 0 | `test_health.py` | ✅ Phase 0（含组件探活, 2026-06-09） |
 | 1 | `test_auth.py`、`test_courses.py`、`test_deps.py` | ✅ Phase 1（14 passed, 2026-06-08） |
-| 2 | `test_material_pipeline.py`、`test_vector_store.py`、`test_chat_rag.py`、`test_chat_sse.py`、`test_warehouses.py` | ✅ Phase 2+仓库（45 passed, 2026-06-09） |
-| 3 | `test_code_analysis.py`、`test_mastery.py` 等 | 待 Phase 3 |
+| 2 | `test_material_pipeline.py`、`test_vector_store.py`、`test_chat_rag.py`、`test_chat_sse.py`、`test_warehouses.py` | ✅ Phase 2+仓库（含 PPTX 格式仓） |
+| 3 | `test_code_analysis.py`、`test_code_helpers.py` | ✅ M05（66 passed, 2026-06-10） |
+| 3 | `test_mastery.py`、`test_learning_api.py`、`test_wrong_book_analysis.py` | ✅ M06（含错题本统计与类别分析） |
 | 4 | `test_teacher_stats.py`、`test_health.py`（全组件） | 待 Phase 4 |
 
 ---
@@ -124,6 +125,46 @@ pytest tests/test_health.py -v
 | `test_retry_failed_material` | ✅ 通过 | FAILED → UPLOADED 并重派任务 |
 | `test_delete_material` | ✅ 通过 | 软删除 + 向量清理 |
 
+### Phase 3 M05（2026-06-10）
+
+| 用例 | 结果 | 备注 |
+|------|------|------|
+| `pytest -v` | ✅ 66 passed | 含 `test_code_analysis` 15 + `test_code_helpers` 4 |
+| `test_submit_with_mock_llm` | ✅ 通过 | Mock LLM JSON 落库与 GET 结果 |
+| `test_submit_without_enrollment` | ✅ 通过 | 无需选课即可提交 |
+| `test_list_submissions_empty` | ✅ 通过 | 历史列表无 course_id |
+| 四语言 + 语言校验 + 分栏 UI | ✅ 自测 | 见 `M05_智能代码讲解.md` §9 |
+
+### Phase 3 M06（2026-06-10）
+
+| 用例 | 结果 | 备注 |
+|------|------|------|
+| `pytest -v` | ✅ 75 passed | 含 `test_mastery` 4 + `test_learning_api` 5 |
+| `test_code_submit_creates_wrong_book` | ✅ 通过 | M05 语义 error → 错题本 |
+| `test_dashboard` | ✅ 通过 | 汇总统计 + 薄弱 KP |
+| `test_wrong_book_list_and_mastered` | ✅ 通过 | 列表筛选 + 标记掌握 |
+| `test_recommendations_requires_enrollment` | ✅ 通过 | 未选课 40301 |
+| 前端仪表盘 / 错题本 | ✅ 自测 | `/student/dashboard`、`/student/wrong-book` |
+
+### Phase 3 M06 错题本可视化（2026-06-10）
+
+| 用例 | 结果 | 备注 |
+|------|------|------|
+| `test_learning_api.py` + `test_wrong_book_analysis.py` | ✅ 9 passed | 含 `test_wrong_book_stats` |
+| `test_wrong_book_analysis.py` | ✅ 2 passed | 类别推断、对话详情 |
+| `npm run build` | ✅ 通过 | `WrongBookCharts.vue` 编译无报错 |
+| 前端错题本图表 | ✅ 修复 | `v-if="stats"` + `nextTick` + `ResizeObserver` |
+
+### Phase 3 M06 学习仪表盘三类课程联调（2026-06-10）
+
+| 用例 | 结果 | 备注 |
+|------|------|------|
+| `test_dashboard_integration.py` | ✅ 7 passed | C++/Python/Java 三类课程 |
+| 来源构成 | ✅ | `code_submission` + `chat_message` 均有计数 |
+| 类别分布 | ✅ | 含语法/语义/问答无上下文等多类别 |
+| 演示数据 | ✅ 保留 | `scripts/seed_dashboard_demo.py` → 47 条错题 + 18 份资料 |
+| 资料路径 | ✅ | `root_data/课程资料/` 分类目录 + `_联调演示/` |
+
 ---
 
 ## 8. 变更记录
@@ -134,6 +175,9 @@ pytest tests/test_health.py -v
 | 2026-06-09 | 删除重复 Phase 2 门禁行；补 Phase 2 自测记录；引用 `02_skill.md` |
 | 2026-06-09 | Phase 0-2 问题修复后全量回归 37 passed |
 | 2026-06-09 | 二次复检：含 `test_warehouses.py` 共 45 passed |
+| 2026-06-10 | M05 验收：66 passed；M06 模块文档就绪待编码 |
+| 2026-06-10 | M06 验收：75 passed（含 mastery + learning API） |
+| 2026-06-10 | M06 错题本：stats API + ECharts；`test_wrong_book_analysis` 9 passed 联调 |
 
 ### Phase 0-2 二次复检（2026-06-09）
 

@@ -14,6 +14,9 @@ const menus = computed(() => {
       { path: '/student/courses', title: '我的课程' },
       { path: '/student/browse', title: '选课查询' },
       { path: '/student/chat', title: 'AI 对话' },
+      { path: '/student/code', title: '代码讲解' },
+      { path: '/student/dashboard', title: '学习仪表盘' },
+      { path: '/student/wrong-book', title: '错题本' },
     ]
   }
   const items = [
