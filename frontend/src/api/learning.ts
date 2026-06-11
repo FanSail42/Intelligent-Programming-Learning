@@ -16,6 +16,13 @@ export interface WeakKpItem {
 export interface RecentEventItem {
   event_type: string
   course_id: number | null
+  course_name?: string | null
+  kp_id?: number | null
+  kp_name?: string | null
+  title?: string | null
+  detail?: string | null
+  icon?: string | null
+  tone?: string | null
   created_at: string
 }
 

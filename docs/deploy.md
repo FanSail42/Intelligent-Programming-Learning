@@ -1,7 +1,7 @@
 # 部署与本地开发说明
 
 > **项目**：慧编学伴——智能编程学习助教系统
-> **版本**：Phase 0 骨架（Phase 4 定稿）
+> **版本**：Phase 4 开发中（M07/M09 已交付；M08 生产部署待完善）
 
 ---
 
@@ -121,9 +121,39 @@ VITE_API_BASE=http://localhost:8000
 1. `docker compose up -d` — 启动 MySQL、Redis
 2. `cd backend` → `alembic upgrade head` — 数据库迁移
 3. `uvicorn app.main:app --reload` — 启动后端（补齐仓库 schema）
-4. `python scripts/seed_demo.py` + `python scripts/seed_warehouses.py` — 演示数据
-5. `cd frontend` → `npm run dev`
-6. 浏览器打开 http://localhost:5173
+4. `python scripts/seed_demo.py` + `python scripts/seed_warehouses.py` — 基础账号与仓库
+5. `python scripts/seed_dashboard_demo.py` — **仪表盘/教师学情联调**（C++/Python/Java 三门课 + 近 7 日错题）
+6. `cd frontend` → `npm run dev`
+7. 浏览器打开 http://localhost:5173
+
+### 6.2 仪表盘演示数据说明
+
+| 脚本 | 作用 |
+|------|------|
+| `seed_demo.py` | admin/teacher/student + 单门 Python Demo 课 |
+| `seed_dashboard_demo.py` | 3 门代表课、18+ 份 PDF 资料、55+ 错题、90 学习事件 |
+| `seed_warehouses.py` | 格式仓/课程仓初始数据 |
+
+演示课 keys：`cpp`（C++ 数据结构）、`python`（Python 数据分析）、`java`（Java 面向对象）。可重复执行，脚本幂等。
+
+### 6.3 开发端口冲突（Windows 常见）
+
+若前端访问 `/admin/overview` 或 `/admin/logs` 返回 **404**，而 pytest 已通过，通常是 **8000 上仍有旧 uvicorn 进程**（OpenAPI 不含新路由）。
+
+1. 查占用：`netstat -ano | findstr :8000`
+2. 结束对应 PID 后，在 `backend` 目录仅启动 **一个** 实例：`uvicorn app.main:app --reload --port 8000`
+3. 验证：http://localhost:8000/openapi.json 应含 `/api/v1/admin/overview`
+4. 临时方案：在新端口启动最新后端，例如：
+   ```bash
+   cd backend
+   uvicorn app.main:app --reload --host 127.0.0.1 --port 8002
+   ```
+   并设置 `frontend/.env.development`：
+   ```
+   VITE_API_BASE=http://127.0.0.1:8002
+   ```
+5. **修改 `.env.development` 后必须重启** `npm run dev`（Vite 不会热加载 env）
+6. 快速自检：浏览器打开 `{VITE_API_BASE}/openapi.json`，搜索 `admin/overview` 与 `admin/ai/models` 均应存在
 
 ### 6.1 JWT 有效期
 
@@ -181,11 +211,19 @@ pytest -v
 
 ---
 
-## 10. 生产部署（Phase 4 完善）
+## 10. 生产部署（M08，待完善）
 
-- Docker Compose 增加 `backend`、`celery-worker`、`frontend`（build）服务
-- Nginx 反向代理 + 静态资源
-- Gunicorn：`gunicorn -k uvicorn.workers.UvicornWorker app.main:app`
+当前 `docker-compose.yml` 仅含 MySQL + Redis。Phase 4 M08 目标：
+
+| 任务 | 说明 |
+|------|------|
+| `docker-compose.prod.yml` | 增加 `backend`、`celery-worker`、`frontend`（build）服务 |
+| Nginx | 反向代理 + 静态资源 |
+| Gunicorn | `gunicorn -k uvicorn.workers.UvicornWorker app.main:app` |
+| 配置 | `sys_config` / LLM Key 管理或 `.env` 文档化 |
+| 备份 | `scripts/backup_db.py`（可选） |
+
+答辩最低标准：本地 `docker compose up -d` + 手动启后端/前端即可；生产一键部署为 M08 交付物。
 
 ---
 
@@ -195,3 +233,5 @@ pytest -v
 | ---------- | -------------------- |
 | 2026-06-08 | Phase 0 本地启动骨架 |
 | 2026-06-09 | 统一端口 8000/3306；补充 Celery worker 说明 |
+| 2026-06-11 | 补充 dashboard 演示种子、8000 端口冲突排查、M08 待办 |
+| 2026-06-11 | 全量联调 154 passed；个人中心；文档四件套 |

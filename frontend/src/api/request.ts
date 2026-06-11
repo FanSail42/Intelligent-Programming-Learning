@@ -38,9 +38,13 @@ request.interceptors.response.use(
       if (payload.code === 40101) {
         sessionStorage.removeItem('access_token')
         sessionStorage.removeItem('refresh_token')
-        if (!window.location.pathname.startsWith('/login')) {
+        const onLoginPage = window.location.pathname.startsWith('/login')
+        if (!onLoginPage) {
           window.location.href = '/login'
         }
+        const loginMsg = '你的账号或密码错误！'
+        ElMessage.error(onLoginPage ? loginMsg : payload.message || loginMsg)
+        return Promise.reject(new Error(onLoginPage ? loginMsg : payload.message || loginMsg))
       }
 
       ElMessage.error(payload.message || '请求失败')

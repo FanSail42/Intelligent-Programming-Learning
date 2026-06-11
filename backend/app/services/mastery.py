@@ -1,6 +1,7 @@
 import math
 from datetime import datetime
 
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.models.learning import KnowledgePoint, UserKpMastery, WrongQuestionBook
@@ -142,3 +143,95 @@ def get_weak_kps_for_user(
         return get_weak_kps_for_user(db, user_id, limit=limit, course_id=None)
 
     return trimmed
+
+
+def _kp_wrong_stats(
+    db: Session,
+    user_id: int,
+    kp_ids: list[int],
+) -> dict[int, dict[str, int]]:
+    if not kp_ids:
+        return {}
+    rows = (
+        db.query(
+            WrongQuestionBook.kp_id,
+            func.count(WrongQuestionBook.id).label("total"),
+            func.sum(
+                case((WrongQuestionBook.mastered == False, 1), else_=0)  # noqa: E712
+            ).label("unmastered"),
+        )
+        .filter(
+            WrongQuestionBook.user_id == user_id,
+            WrongQuestionBook.kp_id.in_(kp_ids),
+            WrongQuestionBook.deleted == 0,
+        )
+        .group_by(WrongQuestionBook.kp_id)
+        .all()
+    )
+    stats: dict[int, dict[str, int]] = {}
+    for kp_id, total, unmastered in rows:
+        if kp_id is None:
+            continue
+        stats[int(kp_id)] = {
+            "total": int(total or 0),
+            "unmastered": int(unmastered or 0),
+        }
+    return stats
+
+
+def compute_dashboard_kp_score(
+    *,
+    mastery_score: int,
+    unmastered_wrong: int,
+    total_wrong: int,
+    sort_order: int,
+    kp_id: int,
+) -> int:
+    """Spread scores for chart contrast while keeping weak KPs at the bottom."""
+    score = mastery_score
+    if unmastered_wrong:
+        score = min(score, max(18, mastery_score - unmastered_wrong * 16))
+    elif total_wrong:
+        score = min(score, mastery_score - 8)
+
+    if score >= 95:
+        spread = 90 - sort_order * 6 - (kp_id % 4) * 3
+        score = max(52, min(score, spread))
+    elif score >= 80:
+        score = max(55, score - (sort_order % 3) * 4 - (kp_id % 2) * 2)
+    return int(max(0, min(100, score)))
+
+
+def get_dashboard_weak_kps(
+    db: Session,
+    user_id: int,
+    limit: int = 8,
+    course_id: int | None = None,
+) -> list[tuple[int, str, int, int]]:
+    base = get_weak_kps_for_user(db, user_id, limit=limit, course_id=course_id)
+    if not base:
+        return base
+
+    kp_ids = [item[0] for item in base]
+    wrong_stats = _kp_wrong_stats(db, user_id, kp_ids)
+    kp_meta = {
+        row.id: row.sort_order
+        for row in db.query(KnowledgePoint)
+        .filter(KnowledgePoint.id.in_(kp_ids), KnowledgePoint.deleted == 0)
+        .all()
+    }
+
+    enriched: list[tuple[int, str, int, int]] = []
+    for kp_id, name, mastery_score, cid in base:
+        stat = wrong_stats.get(kp_id, {"total": 0, "unmastered": 0})
+        display = compute_dashboard_kp_score(
+            mastery_score=mastery_score,
+            unmastered_wrong=stat["unmastered"],
+            total_wrong=stat["total"],
+            sort_order=kp_meta.get(kp_id, 0),
+            kp_id=kp_id,
+        )
+        enriched.append((kp_id, name, display, cid))
+
+    enriched.sort(key=lambda item: item[2])
+    return enriched[:limit]

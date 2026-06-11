@@ -7,6 +7,7 @@ from chromadb.config import Settings as ChromaSettings
 
 from app.core.config import get_settings
 from app.services.embedding import LOCAL_EMBED_DIM
+from app.services.runtime_ai_config import get_cached_runtime_ai_config
 
 settings = get_settings()
 logger = structlog.get_logger(__name__)
@@ -14,7 +15,8 @@ COLLECTION_NAME = "course_chunks"
 
 
 def resolve_embedding_dimensions() -> int:
-    if settings.embedding_api_key or settings.llm_api_key:
+    cfg = get_cached_runtime_ai_config()
+    if cfg.embedding_api_key or cfg.llm_api_key:
         return settings.embedding_dimensions
     return LOCAL_EMBED_DIM
 
@@ -30,6 +32,8 @@ class VectorHit:
     text: str
     page: int | None
     score: float
+    material_id: int | None = None
+    material_name: str | None = None
 
 
 class VectorStore:

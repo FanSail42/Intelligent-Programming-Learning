@@ -15,10 +15,14 @@ const props = withDefaults(
     stats: WrongBookStats
     showSummary?: boolean
     courseId?: number | null
+    hideDetailLink?: boolean
+    scopeDesc?: string
   }>(),
   {
     showSummary: true,
     courseId: null,
+    hideDetailLink: false,
+    scopeDesc: '',
   },
 )
 
@@ -71,6 +75,26 @@ async function renderAll() {
     .sort((a, b) => b.total - a.total)
     .slice(0, 6)
 
+  const localDateKey = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  }
+  const weekdayLabels = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+  const todayKey = localDateKey(new Date())
+  const trendDates = s.trend.map((t) => t.date)
+  const todayIdx = trendDates.length > 0 ? trendDates.length - 1 : -1
+  const trendCounts = s.trend.map((t) => t.count)
+  const maxCount = Math.max(0, ...trendCounts)
+  const yMax = Math.max(3, Math.ceil(maxCount * 1.3))
+
+  const xLabels = s.trend.map((t) => {
+    const md = t.date.slice(5)
+    if (t.date === todayKey) return `${md} 今日`
+    const wd = weekdayLabels[new Date(`${t.date}T12:00:00`).getDay()]
+    return s.trend.length <= 7 ? `${md} ${wd}` : md
+  })
+
   const trend = initChart(trendRef.value)
   trend?.setOption({
     color: [DASHBOARD_PALETTE[0]],
@@ -79,17 +103,34 @@ async function renderAll() {
       backgroundColor: 'rgba(255,255,255,0.96)',
       borderColor: '#eee',
       textStyle: { color: '#333' },
+      formatter: (params: unknown) => {
+        const row = (params as { axisValue: string; value: number; dataIndex: number }[])[0]
+        if (!row) return ''
+        const date = trendDates[row.dataIndex] ?? ''
+        const suffix = date === todayKey ? '（今日）' : ''
+        return `${date}${suffix}<br/>新增错题 <b>${row.value}</b> 道`
+      },
     },
-    grid: { left: 12, right: 20, top: 36, bottom: 28, containLabel: true },
+    grid: { left: 12, right: 24, top: 40, bottom: 32, containLabel: true },
     xAxis: {
       type: 'category',
-      boundaryGap: false,
-      data: s.trend.map((t) => t.date.slice(5)),
+      boundaryGap: true,
+      data: xLabels,
       axisLine: { lineStyle: { color: '#dcdfe6' } },
-      axisLabel: { color: '#909399', fontSize: 11 },
+      axisLabel: {
+        fontSize: 11,
+        color: '#909399',
+        formatter: (value: string) =>
+          value.includes('今日') ? `{today|${value}}` : value,
+        rich: {
+          today: { color: '#5470c6', fontWeight: 'bold' },
+        },
+      },
     },
     yAxis: {
       type: 'value',
+      min: 0,
+      max: yMax,
       minInterval: 1,
       splitLine: { lineStyle: { type: 'dashed', color: '#ebeef5' } },
       axisLabel: { color: '#909399', fontSize: 11 },
@@ -98,17 +139,40 @@ async function renderAll() {
       {
         name: '新增错题',
         type: 'line',
-        smooth: true,
+        smooth: 0.35,
         symbol: 'circle',
-        symbolSize: 6,
-        showSymbol: s.trend.some((t) => t.count > 0),
+        symbolSize: (value: number, params: { dataIndex: number }) =>
+          params.dataIndex === todayIdx ? 10 : value > 0 ? 7 : 5,
+        showSymbol: true,
+        connectNulls: true,
         lineStyle: { width: 3, color: DASHBOARD_PALETTE[0] },
-        itemStyle: { color: DASHBOARD_PALETTE[0], borderWidth: 2, borderColor: '#fff' },
+        itemStyle: {
+          color: (params: { dataIndex: number; value: number }) => {
+            if (params.dataIndex === todayIdx) return '#ee6666'
+            return params.value > 0 ? DASHBOARD_PALETTE[0] : '#c0c4cc'
+          },
+          borderWidth: 2,
+          borderColor: '#fff',
+        },
         areaStyle: {
           color: linearGradient(echarts, DASHBOARD_GRADIENT.info, true),
-          opacity: 0.35,
+          opacity: 0.4,
         },
-        data: s.trend.map((t) => t.count),
+        data: trendCounts,
+        markLine:
+          todayIdx >= 0
+            ? {
+                silent: true,
+                symbol: 'none',
+                lineStyle: { type: 'dashed', color: '#ee6666', width: 1 },
+                label: {
+                  formatter: '今日',
+                  color: '#ee6666',
+                  fontSize: 10,
+                },
+                data: [{ xAxis: todayIdx }],
+              }
+            : undefined,
       },
     ],
   })
@@ -189,21 +253,28 @@ async function renderAll() {
     legend: {
       type: 'scroll',
       orient: 'vertical',
-      right: 4,
+      right: 8,
       top: 'middle',
-      itemWidth: 10,
-      itemHeight: 10,
-      textStyle: { fontSize: 11, color: '#606266' },
+      itemWidth: 12,
+      itemHeight: 12,
+      textStyle: { fontSize: 12, color: '#606266' },
     },
     series: [
       {
         name: '错题类别',
         type: 'pie',
-        radius: ['18%', '68%'],
-        center: ['38%', '50%'],
+        radius: ['24%', '82%'],
+        center: ['42%', '52%'],
         roseType: 'area',
-        itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
-        label: { show: false },
+        itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
+        label: {
+          show: true,
+          position: 'outside',
+          formatter: '{b}\n{c}',
+          fontSize: 11,
+          color: '#606266',
+        },
+        labelLine: { length: 12, length2: 10 },
         data: topCats.length
           ? topCats.map((c) => ({ name: c.label, value: c.total }))
           : [{ name: '暂无类别', value: 1, itemStyle: { color: '#e4e7ed' } }],
@@ -270,8 +341,8 @@ const hasLanguage = () => props.stats.by_language.length > 0
     <div class="analytics-grid">
       <div class="panel panel-trend">
         <div class="panel-head">
-          <span class="panel-title">近 30 日新增趋势</span>
-          <span class="panel-desc">折线面积图 · 观察错题积累节奏</span>
+          <span class="panel-title">近 7 日新增趋势</span>
+          <span class="panel-desc">{{ scopeDesc || '折线面积图 · 按自然日统计，末位为今日' }}</span>
         </div>
         <div ref="trendRef" class="chart-trend" />
       </div>
@@ -309,7 +380,7 @@ const hasLanguage = () => props.stats.by_language.length > 0
           {{ languageLabel(item.language) }} · {{ item.count }}
         </el-tag>
       </div>
-      <el-button type="primary" link @click="goWrongBook">查看错题详情 →</el-button>
+      <el-button v-if="!hideDetailLink" type="primary" link @click="goWrongBook">查看错题详情 →</el-button>
     </div>
   </div>
 </template>
@@ -427,8 +498,8 @@ const hasLanguage = () => props.stats.by_language.length > 0
 
 .chart-rose {
   width: 100%;
-  height: 220px;
-  min-height: 220px;
+  height: 320px;
+  min-height: 320px;
 }
 
 .analytics-footer {

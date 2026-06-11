@@ -10,4 +10,4 @@ async def test_health_returns_200(client):
     assert body["message"] == "ok"
     assert body["data"]["status"] in ("healthy", "degraded")
     assert "components" in body["data"]
-    assert set(body["data"]["components"]) == {"mysql", "redis", "chroma"}
+    assert set(body["data"]["components"]) == {"mysql", "redis", "chroma", "pptx_parser"}

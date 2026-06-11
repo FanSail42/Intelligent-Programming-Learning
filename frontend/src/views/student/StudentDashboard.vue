@@ -25,13 +25,22 @@ const recommendations = ref<RecommendationItem[]>([])
 const recLoading = ref(false)
 const statsScopeHint = ref('')
 const statsIsGlobalFallback = ref(false)
+const TREND_DAYS = 7
 
-const EVENT_LABELS: Record<string, string> = {
-  code_submit: '代码提交',
-  code_analysis_error: '代码分析错误',
-  chat_message: 'AI 对话',
-  chat_no_context: '对话无上下文',
-  material_view: '资料浏览',
+const EVENT_ICONS: Record<string, string> = {
+  code: '💻',
+  warning: '⚠️',
+  chat: '💬',
+  material: '📄',
+  default: '📌',
+}
+
+const TONE_CLASS: Record<string, string> = {
+  primary: 'tone-primary',
+  danger: 'tone-danger',
+  warning: 'tone-warning',
+  info: 'tone-info',
+  success: 'tone-success',
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -58,11 +67,52 @@ const ACTION_ICONS: Record<string, string> = {
   practice_code: '💻',
 }
 
-function eventLabel(type: string) {
-  return EVENT_LABELS[type] ?? type
+function localDateKey(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function formatActivityTime(iso: string): string {
+  const dt = new Date(iso)
+  if (Number.isNaN(dt.getTime())) return iso
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const clock = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`
+  const isToday = localDateKey(dt) === localDateKey(now)
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const isYesterday = localDateKey(dt) === localDateKey(yesterday)
+
+  const diffMs = now.getTime() - dt.getTime()
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return `刚刚 · ${clock}`
+  if (isToday) return diffMin < 60 ? `${diffMin} 分钟前` : `今天 ${clock}`
+  if (isYesterday) return `昨天 ${clock}`
+  const diffDay = Math.floor(diffMin / 60 / 24)
+  if (diffDay < 7) return `${diffDay} 天前 · ${clock}`
+  return `${dt.getMonth() + 1}-${pad(dt.getDate())} ${clock}`
+}
+
+function activityIcon(evt: { icon?: string | null; event_type: string }) {
+  return EVENT_ICONS[evt.icon || ''] ?? EVENT_ICONS.default
+}
+
+function activityToneClass(evt: { tone?: string | null }) {
+  return TONE_CLASS[evt.tone || ''] ?? 'tone-info'
+}
+
+function activityTitle(evt: { title?: string | null; event_type: string }) {
+  return evt.title || evt.event_type
 }
 
 const weakKps = computed(() => dashboard.value?.weak_kps ?? [])
+
+const sortedRecentEvents = computed(() => {
+  const events = dashboard.value?.recent_events ?? []
+  return [...events].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  )
+})
 
 const avgMastery = computed(() => {
   const list = weakKps.value
@@ -83,10 +133,10 @@ async function loadWrongBookStats() {
     const globalWrong = dashboard.value?.summary.wrong_count ?? 0
     const scoped = await getWrongBookStats({
       course_id: selectedCourseId.value ?? undefined,
-      days: 30,
+      days: TREND_DAYS,
     })
     if (selectedCourseId.value && scoped.summary.total === 0 && globalWrong > 0) {
-      wrongBookStats.value = await getWrongBookStats({ days: 30 })
+      wrongBookStats.value = await getWrongBookStats({ days: TREND_DAYS })
       statsIsGlobalFallback.value = true
       statsScopeHint.value = '当前课程暂无错题，展示全部课程汇总'
     } else {
@@ -240,7 +290,7 @@ onMounted(async () => {
       <div class="section-header">
         <div>
           <h2 class="section-title">错题洞察</h2>
-          <p class="section-desc">{{ statsScopeHint || `${selectedCourseName || '全部课程'} · 近 30 日` }}</p>
+          <p class="section-desc">{{ statsScopeHint || `${selectedCourseName || '全部课程'} · 近 7 日` }}</p>
         </div>
       </div>
       <WrongBookCharts
@@ -285,18 +335,29 @@ onMounted(async () => {
           <h2 class="section-title">近期活动</h2>
           <p class="section-desc">近 7 日</p>
         </div>
-        <el-timeline v-if="dashboard?.recent_events.length" class="activity-timeline">
-          <el-timeline-item
-            v-for="(evt, idx) in dashboard.recent_events"
-            :key="idx"
-            :timestamp="evt.created_at"
-            placement="top"
-            type="primary"
-            hollow
+        <div v-if="sortedRecentEvents.length" class="activity-list">
+          <article
+            v-for="(evt, idx) in sortedRecentEvents"
+            :key="`${evt.event_type}-${evt.created_at}-${idx}`"
+            class="activity-card"
+            :class="activityToneClass(evt)"
           >
-            {{ eventLabel(evt.event_type) }}
-          </el-timeline-item>
-        </el-timeline>
+            <div class="activity-icon">{{ activityIcon(evt) }}</div>
+            <div class="activity-body">
+              <div class="activity-head">
+                <span class="activity-title">{{ activityTitle(evt) }}</span>
+                <time class="activity-time">{{ formatActivityTime(evt.created_at) }}</time>
+              </div>
+              <p v-if="evt.detail" class="activity-detail">{{ evt.detail }}</p>
+              <div class="activity-meta">
+                <el-tag v-if="evt.kp_name" size="small" effect="plain" round>
+                  {{ evt.kp_name }}
+                </el-tag>
+                <span v-if="evt.course_name" class="activity-course">{{ evt.course_name }}</span>
+              </div>
+            </div>
+          </article>
+        </div>
         <el-empty v-else description="近 7 日暂无活动" :image-size="72" />
       </div>
     </section>
@@ -519,10 +580,104 @@ onMounted(async () => {
   min-height: 380px;
 }
 
-.activity-timeline {
-  padding-left: 4px;
-  max-height: 320px;
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 340px;
   overflow-y: auto;
+  padding-right: 4px;
+}
+
+.activity-card {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #ebeef5;
+  background: #fafbfc;
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.activity-card:hover {
+  box-shadow: 0 4px 14px rgba(84, 112, 198, 0.1);
+  transform: translateY(-1px);
+}
+
+.activity-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  background: #eef2ff;
+}
+
+.activity-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.activity-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.activity-time {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #a8abb2;
+}
+
+.activity-detail {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #606266;
+}
+
+.activity-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.activity-course {
+  font-size: 12px;
+  color: #909399;
+}
+
+.tone-danger .activity-icon {
+  background: #fef0f0;
+}
+
+.tone-warning .activity-icon {
+  background: #fdf6ec;
+}
+
+.tone-success .activity-icon {
+  background: #f0f9eb;
+}
+
+.tone-info .activity-icon {
+  background: #ecf5ff;
+}
+
+.tone-primary .activity-icon {
+  background: #eef2ff;
 }
 
 .rec-grid {

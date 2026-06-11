@@ -11,7 +11,9 @@ from app.core.deps import CurrentUser, DbSession
 from app.core.exceptions import ERR_NOT_FOUND, BusinessException
 from app.core.rate_limit import check_llm_rate_limit
 from app.models.chat import ChatMessage, ChatSession, MessageCitation, MessageRole
+from app.models.course import Course
 from app.models.learning import KnowledgePoint
+from app.models.material import CourseMaterial, MaterialChunk
 from app.models.user import User, UserRole
 from app.schemas.chat import MessageCreate, MessageOut, SessionCreate, SessionOut
 from app.schemas.response import success
@@ -23,14 +25,87 @@ from app.services.llm_service import (
     stream_llm,
     validate_user_input,
 )
+from app.services.runtime_ai_config import get_cached_runtime_ai_config
+from app.services.chat_suggestions import get_chat_suggestions
+from app.services.course_track import resolve_code_fence_tag, resolve_course_code_language
 from app.services.learning_events import after_chat_no_context
 from app.services.rag import retrieve_chunks
+from app.services.rag_relevance import filter_relevant_hits
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 settings = get_settings()
 logger = structlog.get_logger(__name__)
 DEFAULT_SESSION_TITLE = "新对话"
 SESSION_TITLE_MAX_LEN = 10
+CITATION_DISPLAY_LIMIT = 3
+
+
+def _material_display_name(name: str | None) -> str:
+    if not name:
+        return "课程资料"
+    stem = name.rsplit(".", 1)[0] if "." in name else name
+    return stem.strip() or "课程资料"
+
+
+def _top_citations_from_hits(hits: list) -> list[dict]:
+    """Deduplicate by material, keep top-N by retrieval score."""
+    seen_materials: set[int] = set()
+    result: list[dict] = []
+    for hit in hits:
+        material_id = getattr(hit, "material_id", None) or hit.chunk_id
+        if material_id in seen_materials:
+            continue
+        seen_materials.add(material_id)
+        result.append(
+            {
+                "chunk_id": hit.chunk_id,
+                "material_name": _material_display_name(
+                    getattr(hit, "material_name", None)
+                ),
+            }
+        )
+        if len(result) >= CITATION_DISPLAY_LIMIT:
+            break
+    return result
+
+
+def _enrich_stored_citations(db: Session, citations: list[MessageCitation]) -> list[dict]:
+    if not citations:
+        return []
+    chunk_ids = [c.chunk_id for c in citations]
+    chunks = (
+        db.query(MaterialChunk)
+        .filter(MaterialChunk.id.in_(chunk_ids), MaterialChunk.deleted == 0)
+        .all()
+    )
+    chunk_map = {c.id: c for c in chunks}
+    material_ids = {c.material_id for c in chunks}
+    materials = (
+        db.query(CourseMaterial)
+        .filter(CourseMaterial.id.in_(material_ids), CourseMaterial.deleted == 0)
+        .all()
+        if material_ids
+        else []
+    )
+    material_map = {m.id: m.original_name for m in materials}
+
+    seen_materials: set[int] = set()
+    result: list[dict] = []
+    for cite in citations:
+        chunk = chunk_map.get(cite.chunk_id)
+        material_id = chunk.material_id if chunk else cite.chunk_id
+        if material_id in seen_materials:
+            continue
+        seen_materials.add(material_id)
+        material_name = (
+            _material_display_name(material_map.get(chunk.material_id))
+            if chunk
+            else "课程资料"
+        )
+        result.append({"chunk_id": cite.chunk_id, "material_name": material_name})
+        if len(result) >= CITATION_DISPLAY_LIMIT:
+            break
+    return result
 
 
 def summarize_session_title(content: str, max_len: int = SESSION_TITLE_MAX_LEN) -> str:
@@ -111,6 +186,19 @@ def create_session(body: SessionCreate, db: DbSession, user: CurrentUser):
     return success(SessionOut.model_validate(session).model_dump(mode="json"))
 
 
+@router.get("/suggestions")
+def chat_suggestions(
+    db: DbSession,
+    user: CurrentUser,
+    course_id: int = Query(...),
+):
+    if user.role == UserRole.student:
+        ensure_student_enrolled(db, user, course_id)
+    else:
+        ensure_chat_access(db, user, course_id)
+    return success(get_chat_suggestions(db, course_id))
+
+
 @router.get("/sessions")
 def list_sessions(
     db: DbSession,
@@ -179,16 +267,16 @@ def list_session_messages(
             )
             .all()
         )
-        for cite in citations:
-            cite_map[cite.message_id].append(
-                {"chunk_id": cite.chunk_id, "page": cite.source_page}
-            )
+        for msg_id in assistant_ids:
+            msg_cites = [c for c in citations if c.message_id == msg_id]
+            cite_map[msg_id] = _enrich_stored_citations(db, msg_cites)
 
     result: list[dict] = []
     for msg in rows:
         if msg.role not in (MessageRole.user, MessageRole.assistant):
             continue
         citations = cite_map.get(msg.id, [])
+        context_relevant = bool(citations) if msg.role == MessageRole.assistant else None
         item = MessageOut(
             id=msg.id,
             role=msg.role.value,
@@ -196,6 +284,7 @@ def list_session_messages(
             created_at=msg.created_at,
             citations=citations,
             no_context=None,
+            context_relevant=context_relevant,
         )
         result.append(item.model_dump(mode="json"))
 
@@ -261,14 +350,28 @@ async def send_message(
             db.refresh(session)
 
     try:
-        hits = await retrieve_chunks(db, course_id=session.course_id, query=body.content)
+        raw_hits = await retrieve_chunks(db, course_id=session.course_id, query=body.content)
     except Exception as exc:
         logger.warning("rag_retrieve_failed", course_id=session.course_id, error=str(exc))
-        hits = []
+        raw_hits = []
+    relevant_hits = filter_relevant_hits(body.content, raw_hits)
+    context_relevant = len(relevant_hits) > 0
     history = _load_session_history(db, session.id, user_msg.id)
-    messages = build_rag_prompt(hits, body.content, history=history)
-    no_context = len(hits) == 0
-    hit_data = [{"chunk_id": h.chunk_id, "page": h.page} for h in hits]
+    course = (
+        db.query(Course)
+        .filter(Course.id == session.course_id, Course.deleted == 0)
+        .first()
+    )
+    course_name = course.name if course else ""
+    messages = build_rag_prompt(
+        relevant_hits,
+        body.content,
+        history=history,
+        code_language=resolve_course_code_language(course_name),
+        code_fence_tag=resolve_code_fence_tag(course_name),
+    )
+    no_context = len(raw_hits) == 0
+    hit_data = _top_citations_from_hits(relevant_hits) if context_relevant else []
 
     async def event_stream() -> AsyncIterator[str]:
         from app.core.database import SessionLocal
@@ -308,12 +411,12 @@ async def send_message(
                     cite = MessageCitation(
                         message_id=assistant_msg.id,
                         chunk_id=item["chunk_id"],
-                        source_page=item["page"],
+                        source_page=None,
                     )
                     save_db.add(cite)
                     citations.append(item)
                 save_db.commit()
-                if no_context:
+                if not context_relevant:
                     kp = (
                         save_db.query(KnowledgePoint)
                         .filter(
@@ -338,7 +441,7 @@ async def send_message(
             await log_llm_invoke(
                 user_id=user.id,
                 scene="chat_rag",
-                model=settings.llm_model,
+                model=get_cached_runtime_ai_config().llm_model,
                 tokens=estimate_tokens(full_text),
             )
 
@@ -346,8 +449,9 @@ async def send_message(
                 {
                     "delta": "",
                     "done": True,
-                    "citations": citations,
+                    "citations": citations if context_relevant else [],
                     "no_context": no_context,
+                    "context_relevant": context_relevant,
                     "session_title": session_title,
                 },
                 ensure_ascii=False,

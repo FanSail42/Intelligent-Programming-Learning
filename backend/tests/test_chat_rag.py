@@ -23,6 +23,18 @@ def test_build_rag_prompt_with_hits():
     assert "chunk_id=1" in messages[-1]["content"]
 
 
+def test_build_rag_prompt_injects_course_code_language():
+    messages = build_rag_prompt(
+        [],
+        "二分查找怎么写?",
+        code_language="C++",
+        code_fence_tag="cpp",
+    )
+    system = messages[0]["content"]
+    assert "C++" in system
+    assert "```cpp" in system
+
+
 def test_build_rag_prompt_with_history():
     history = [
         {"role": "user", "content": "我叫小明"},

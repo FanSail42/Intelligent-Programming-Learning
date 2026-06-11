@@ -92,7 +92,7 @@ pytest tests/test_health.py -v
 | 2 | `test_material_pipeline.py`、`test_vector_store.py`、`test_chat_rag.py`、`test_chat_sse.py`、`test_warehouses.py` | ✅ Phase 2+仓库（含 PPTX 格式仓） |
 | 3 | `test_code_analysis.py`、`test_code_helpers.py` | ✅ M05（66 passed, 2026-06-10） |
 | 3 | `test_mastery.py`、`test_learning_api.py`、`test_wrong_book_analysis.py` | ✅ M06（含错题本统计与类别分析） |
-| 4 | `test_teacher_stats.py`、`test_health.py`（全组件） | 待 Phase 4 |
+| 4 | `test_teacher_stats.py`、`test_admin_users.py`、`test_admin_ai.py`、`test_health.py`（全组件） | ✅ M07/M09 MVP（2026-06-11） |
 
 ---
 
@@ -165,6 +165,49 @@ pytest tests/test_health.py -v
 | 演示数据 | ✅ 保留 | `scripts/seed_dashboard_demo.py` → 47 条错题 + 18 份资料 |
 | 资料路径 | ✅ | `root_data/课程资料/` 分类目录 + `_联调演示/` |
 
+### 全量回归（2026-06-11）
+
+| 用例 | 结果 | 备注 |
+|------|------|------|
+| `pytest -q` | ✅ **154 passed** | 全后端测试 |
+| `test_health_returns_200` | ✅ 修复 | 断言组件含 `pptx_parser` |
+| `test_rag_relevance.py` | ✅ 4 passed | AI 引用相关性过滤 |
+| `test_chat_suggestions.py` | ✅ 3 passed | 课程导向问题 |
+| `test_wrong_book_trend.py` | ✅ 1 passed | 趋势含今日、近 7 日 |
+| `npm run build` | ✅ 通过 | 前端生产构建 |
+
+### M07 教师学情 MVP（2026-06-11）
+
+| 用例 | 结果 | 备注 |
+|------|------|------|
+| `test_teacher_stats.py` | ✅ 6 passed | 教师/管理员可读、学生/他人教师 403、空班/聚合 |
+| `GET /teacher/courses/{id}/overview` | ✅ | 班级错题、KP、事件趋势 |
+| `TeacherDashboard.vue` | ✅ | `/teacher/dashboard` 班级学情页 |
+
+### M09 账户管理 MVP（2026-06-11）
+
+| 用例 | 结果 | 备注 |
+|------|------|------|
+| `test_admin_users.py` | ✅ 15 passed | 分模块 CRUD、概览、日志、角色校验 |
+| `AccountManage.vue` | — | 已拆分为独立子页面 |
+| `AdminOverview.vue` / `StudentAccountManage.vue` / `TeacherAccountManage.vue` / `OperationLogs.vue` | ✅ | 系统管理子模块 |
+
+### 个人中心（2026-06-11）
+
+| 用例 | 结果 | 备注 |
+|------|------|------|
+| `test_profile.py` | ✅ 5 passed | 概览、改用户名、改密、错误密码 |
+| `PersonalCenter.vue` | ✅ | `/profile` 三类用户通用 |
+
+---
+
+### M09 AI 模型管理（2026-06-11）
+
+| 用例 | 结果 | 备注 |
+|------|------|------|
+| `test_admin_ai.py` | ✅ 9 passed | 百炼模型目录、配置更新、用量统计、密钥加密 |
+| `AiModelManage.vue` / `AiUsageStats.vue` | ✅ | `/admin/ai-models`、`/admin/ai-usage` |
+
 ---
 
 ## 8. 变更记录
@@ -178,6 +221,10 @@ pytest tests/test_health.py -v
 | 2026-06-10 | M05 验收：66 passed；M06 模块文档就绪待编码 |
 | 2026-06-10 | M06 验收：75 passed（含 mastery + learning API） |
 | 2026-06-10 | M06 错题本：stats API + ECharts；`test_wrong_book_analysis` 9 passed 联调 |
+| 2026-06-11 | M07 MVP：`test_teacher_stats` + 教师班级学情 API/前端 |
+| 2026-06-11 | 全量回归 119 passed；health 含 pptx_parser；M04/M06 联调增强 |
+| 2026-06-11 | M09 子模块：`test_admin_users` 15 passed；全量 **140 passed** |
+| 2026-06-11 | 个人中心：`test_profile` 5 passed；全量 **154 passed**；UI 美化 |
 
 ### Phase 0-2 二次复检（2026-06-09）
 

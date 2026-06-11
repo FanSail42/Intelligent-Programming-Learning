@@ -40,11 +40,15 @@ db_module.SessionLocal = TestingSessionLocal
 
 @pytest.fixture(autouse=True)
 def setup_database():
+    from app.services.runtime_ai_config import clear_runtime_ai_config_cache
+
     Base.metadata.create_all(bind=engine)
     set_redis_client(InMemoryRedis())
+    clear_runtime_ai_config_cache()
     yield
     Base.metadata.drop_all(bind=engine)
     set_redis_client(None)
+    clear_runtime_ai_config_cache()
 
 
 @pytest.fixture

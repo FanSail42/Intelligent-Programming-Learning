@@ -70,7 +70,10 @@ function buildOption(items: WeakKpItem[]): echarts.EChartsOption {
           symbol: 'none',
           lineStyle: { type: 'dashed', color: '#dcdfe6' },
           label: { fontSize: 10, color: '#c0c4cc' },
-          data: [{ xAxis: 60, name: '及格线' }],
+          data: [
+            { xAxis: 60, name: '薄弱线' },
+            { xAxis: 80, name: '巩固线' },
+          ],
         },
       },
     ],

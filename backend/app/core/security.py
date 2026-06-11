@@ -84,6 +84,7 @@ class InMemoryRedis:
     def __init__(self) -> None:
         self._store: dict[str, tuple[str, float | None]] = {}
         self._lists: dict[str, list[str]] = {}
+        self._hashes: dict[str, dict[str, int]] = {}
         self._lock = threading.Lock()
         self._list_ready = threading.Condition(self._lock)
 
@@ -107,9 +108,50 @@ class InMemoryRedis:
         with self._lock:
             self._store.pop(key, None)
             self._lists.pop(key, None)
+            self._hashes.pop(key, None)
 
     def exists(self, key: str) -> bool:
         return self.get(key) is not None
+
+    def incr(self, key: str) -> int:
+        with self._lock:
+            raw, expire_at = self._store.get(key, ("0", None))
+            if expire_at and time.time() > expire_at:
+                raw = "0"
+                expire_at = None
+            value = int(raw) + 1
+            self._store[key] = (str(value), expire_at)
+            return value
+
+    def incrby(self, key: str, amount: int) -> int:
+        with self._lock:
+            raw, expire_at = self._store.get(key, ("0", None))
+            if expire_at and time.time() > expire_at:
+                raw = "0"
+                expire_at = None
+            value = int(raw) + amount
+            self._store[key] = (str(value), expire_at)
+            return value
+
+    def expire(self, key: str, seconds: int) -> bool:
+        with self._lock:
+            item = self._store.get(key)
+            if not item:
+                return False
+            value, _ = item
+            self._store[key] = (value, time.time() + seconds)
+            return True
+
+    def hincrby(self, name: str, key: str, amount: int) -> int:
+        with self._lock:
+            bucket = self._hashes.setdefault(name, {})
+            bucket[key] = int(bucket.get(key, 0)) + amount
+            return bucket[key]
+
+    def hgetall(self, name: str) -> dict[str, str]:
+        with self._lock:
+            bucket = self._hashes.get(name, {})
+            return {k: str(v) for k, v in bucket.items()}
 
     def ping(self) -> bool:
         return True

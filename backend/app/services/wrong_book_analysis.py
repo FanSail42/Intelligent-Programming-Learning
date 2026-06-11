@@ -283,11 +283,13 @@ def build_wrong_book_stats(
     by_language: dict[str, int] = defaultdict(int)
     by_kp: dict[int, dict[str, Any]] = defaultdict(lambda: {"total": 0, "unmastered": 0})
 
-    since = datetime.now() - timedelta(days=days - 1)
-    trend_map: dict[str, int] = defaultdict(int)
-    for i in range(days):
-        day = (since + timedelta(days=i)).strftime("%Y-%m-%d")
-        trend_map[day] = 0
+    from datetime import date as date_type
+
+    today = date_type.today()
+    start = today - timedelta(days=days - 1)
+    trend_map: dict[str, int] = {
+        (start + timedelta(days=i)).isoformat(): 0 for i in range(days)
+    }
 
     for row in rows:
         analysis = (
@@ -324,7 +326,7 @@ def build_wrong_book_stats(
                 kp_entry["unmastered"] += 1
 
         if row.created_at:
-            day_key = row.created_at.strftime("%Y-%m-%d")
+            day_key = row.created_at.date().isoformat()
             if day_key in trend_map:
                 trend_map[day_key] += 1
 

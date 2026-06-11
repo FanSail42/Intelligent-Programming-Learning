@@ -305,7 +305,7 @@ def _seed_wrong_books_for_course(
 
     for i in range(code_count):
         profile = ERROR_PROFILES[i % len(ERROR_PROFILES)]
-        created_at = datetime.now() - timedelta(days=rng.randint(0, 28), hours=rng.randint(0, 20))
+        created_at = datetime.now() - timedelta(days=rng.randint(0, 6), hours=rng.randint(0, 20))
         sub = CodeSubmission(
             user_id=student.id,
             course_id=course.id,
@@ -374,7 +374,7 @@ def _seed_wrong_books_for_course(
 
     for j in range(chat_count):
         created_at = datetime.now() - timedelta(
-            days=rng.randint(0, 28),
+            days=rng.randint(0, 6),
             hours=rng.randint(0, 20),
         )
         msg_id = day_offset_start * 1000 + j + 1

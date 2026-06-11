@@ -28,5 +28,6 @@ class MessageOut(BaseModel):
     created_at: datetime
     citations: list[dict] = []
     no_context: bool | None = None
+    context_relevant: bool | None = None
 
     model_config = {"from_attributes": True}

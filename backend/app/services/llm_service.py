@@ -8,6 +8,7 @@ import structlog
 import yaml
 
 from app.core.config import get_settings
+from app.services.runtime_ai_config import get_cached_runtime_ai_config
 from app.services.vector_store import VectorHit
 
 settings = get_settings()
@@ -58,15 +59,32 @@ def _chunks_from_stream_payload(chunk: dict) -> list[LlmStreamChunk]:
     return out
 
 
+def _append_code_language_instruction(system: str, code_language: str, fence_tag: str) -> str:
+    return (
+        f"{system.rstrip()}\n\n"
+        f"## 课程编程语言（必须遵守）\n"
+        f"当前课程代码示例语言为 **{code_language}**。\n"
+        f"- 所有代码示例必须使用 {code_language} 编写\n"
+        f"- Markdown 代码块必须标注为 ```{fence_tag}\n"
+        f"- 禁止改用 Python / Java / C++ 等其他语言，除非学生明确要求对比多种语言"
+    )
+
+
 def build_rag_prompt(
     context_blocks: list[VectorHit],
     question: str,
     history: list[dict] | None = None,
+    *,
+    code_language: str = "Python",
+    code_fence_tag: str = "python",
 ) -> list[dict]:
-    system = load_system_prompt()
+    system = _append_code_language_instruction(
+        load_system_prompt(), code_language, code_fence_tag
+    )
     if context_blocks:
         context = "\n\n".join(
-            f"[片段 chunk_id={h.chunk_id}, page={h.page or '?'}]\n{h.text}"
+            f"[资料：{h.material_name or '课程资料'}"
+            f"{f'，第{h.page}页' if h.page else ''}，chunk_id={h.chunk_id}]\n{h.text}"
             for h in context_blocks
         )
         user_content = f"课程资料：\n{context}\n\n学生问题：{question}"
@@ -84,7 +102,8 @@ def build_rag_prompt(
 
 
 async def stream_llm(messages: list[dict]) -> AsyncIterator[LlmStreamChunk]:
-    api_key = settings.llm_api_key
+    cfg = get_cached_runtime_ai_config()
+    api_key = cfg.llm_api_key
     if not api_key:
         fallback = (
             "（演示模式：未配置 LLM_API_KEY）\n"
@@ -94,10 +113,10 @@ async def stream_llm(messages: list[dict]) -> AsyncIterator[LlmStreamChunk]:
             yield LlmStreamChunk("content", ch)
         return
 
-    url = f"{settings.llm_base_url.rstrip('/')}/chat/completions"
+    url = f"{cfg.llm_base_url.rstrip('/')}/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}"}
     payload = {
-        "model": settings.llm_model,
+        "model": cfg.llm_model,
         "messages": messages,
         "stream": True,
         "enable_thinking": True,
@@ -124,14 +143,15 @@ async def stream_llm(messages: list[dict]) -> AsyncIterator[LlmStreamChunk]:
 
 async def invoke_llm(messages: list[dict]) -> str:
     """Non-streaming completion; returns assistant text or empty when unconfigured."""
-    api_key = settings.llm_api_key
+    cfg = get_cached_runtime_ai_config()
+    api_key = cfg.llm_api_key
     if not api_key:
         return ""
 
-    url = f"{settings.llm_base_url.rstrip('/')}/chat/completions"
+    url = f"{cfg.llm_base_url.rstrip('/')}/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}"}
     payload = {
-        "model": settings.llm_model,
+        "model": cfg.llm_model,
         "messages": messages,
         "stream": False,
     }
@@ -147,6 +167,9 @@ async def invoke_llm(messages: list[dict]) -> str:
 
 
 async def log_llm_invoke(*, user_id: int, scene: str, model: str, tokens: int = 0) -> None:
+    from app.services.ai_usage import record_llm_usage
+
+    record_llm_usage(user_id=user_id, tokens=tokens, scene=scene, model=model)
     logger.info(
         "llm_invoke",
         user_id=user_id,

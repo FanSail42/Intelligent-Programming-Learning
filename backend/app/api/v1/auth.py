@@ -19,7 +19,9 @@ from app.core.security import (
 from app.models.system import OperationLog
 from app.models.user import User, UserStatus
 from app.schemas.auth import LoginRequest, RefreshRequest, TokenData, UserOut
+from app.schemas.profile import ChangePasswordRequest, ProfileSummary, UpdateUsernameRequest
 from app.schemas.response import success
+from app.services.profile import build_profile_summary, change_password, update_username
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -43,9 +45,9 @@ def login(body: LoginRequest, db: DbSession, request: Request):
         .first()
     )
     if not user or not verify_password(body.password, user.password_hash):
-        raise BusinessException(ERR_UNAUTHORIZED, "用户名或密码错误")
+        raise BusinessException(ERR_UNAUTHORIZED, "你的账号或密码错误！")
     if user.status != UserStatus.active:
-        raise BusinessException(ERR_UNAUTHORIZED, "账号已禁用")
+        raise BusinessException(ERR_UNAUTHORIZED, "你的账号或密码错误！")
 
     log = OperationLog(
         user_id=user.id,
@@ -114,3 +116,48 @@ def logout(
 @router.get("/me")
 def me(user: CurrentUser):
     return success(UserOut.model_validate(user).model_dump(mode="json"))
+
+
+@router.get("/profile/summary")
+def profile_summary(user: CurrentUser, db: DbSession):
+    data = build_profile_summary(db, user)
+    return success(ProfileSummary.model_validate(data).model_dump(mode="json"))
+
+
+@router.patch("/profile/username")
+def profile_update_username(body: UpdateUsernameRequest, user: CurrentUser, db: DbSession, request: Request):
+    update_username(
+        db,
+        user=user,
+        new_username=body.new_username,
+        current_password=body.current_password,
+    )
+    log = OperationLog(
+        user_id=user.id,
+        action="profile_update",
+        ip=request.client.host if request.client else None,
+        detail=f"username={body.new_username.strip()}",
+    )
+    db.add(log)
+    db.commit()
+    db.refresh(user)
+    return success(UserOut.model_validate(user).model_dump(mode="json"), message="用户名已更新")
+
+
+@router.patch("/profile/password")
+def profile_change_password(body: ChangePasswordRequest, user: CurrentUser, db: DbSession, request: Request):
+    change_password(
+        db,
+        user=user,
+        current_password=body.current_password,
+        new_password=body.new_password,
+    )
+    log = OperationLog(
+        user_id=user.id,
+        action="password_change",
+        ip=request.client.host if request.client else None,
+        detail=f"user={user.username}",
+    )
+    db.add(log)
+    db.commit()
+    return success(None, message="密码已修改，请使用新密码登录")

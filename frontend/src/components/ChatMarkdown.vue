@@ -23,31 +23,35 @@ const html = computed(() => {
 
 <style scoped>
 .md-body {
-  line-height: 1.7;
-  font-size: 14px;
+  line-height: 1.75;
+  font-size: 15px;
   word-break: break-word;
+  color: #1f2937;
 }
 
 .md-body :deep(h2),
 .md-body :deep(h3),
 .md-body :deep(h4) {
-  margin: 14px 0 8px;
+  margin: 20px 0 10px;
   font-weight: 600;
-  color: #303133;
+  color: #111827;
+}
+
+.md-body :deep(h2:first-child),
+.md-body :deep(h3:first-child) {
+  margin-top: 0;
 }
 
 .md-body :deep(h2) {
-  font-size: 16px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid #ebeef5;
+  font-size: 17px;
 }
 
 .md-body :deep(h3) {
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .md-body :deep(p) {
-  margin: 8px 0;
+  margin: 10px 0;
 }
 
 .md-body :deep(ul),
@@ -69,10 +73,10 @@ const html = computed(() => {
 }
 
 .md-body :deep(pre) {
-  margin: 10px 0;
-  padding: 12px;
-  border-radius: 8px;
-  background: #1e1e1e;
+  margin: 14px 0;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #282c34;
   overflow-x: auto;
 }
 

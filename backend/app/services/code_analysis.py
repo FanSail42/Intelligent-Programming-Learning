@@ -203,10 +203,11 @@ async def analyze_source_code(
 
 async def _log_invoke(user_id: int, tokens: int) -> None:
     from app.services.llm_service import log_llm_invoke
+    from app.services.runtime_ai_config import get_cached_runtime_ai_config
 
     await log_llm_invoke(
         user_id=user_id,
         scene="code_analysis",
-        model=settings.llm_model,
+        model=get_cached_runtime_ai_config().llm_model,
         tokens=tokens,
     )

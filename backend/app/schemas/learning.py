@@ -27,6 +27,13 @@ class WeakKpItem(BaseModel):
 class RecentEventItem(BaseModel):
     event_type: str
     course_id: int | None = None
+    course_name: str | None = None
+    kp_id: int | None = None
+    kp_name: str | None = None
+    title: str | None = None
+    detail: str | None = None
+    icon: str | None = None
+    tone: str | None = None
     created_at: datetime
 
 

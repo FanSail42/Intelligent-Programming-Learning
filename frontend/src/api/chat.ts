@@ -9,7 +9,8 @@ export interface ChatSession {
 
 export interface Citation {
   chunk_id: number
-  page: number | null
+  page?: number | null
+  material_name?: string
 }
 
 export interface ChatMessage {
@@ -19,6 +20,11 @@ export interface ChatMessage {
   created_at: string
   citations: Citation[]
   no_context?: boolean
+  context_relevant?: boolean
+}
+
+export function getChatSuggestions(courseId: number): Promise<string[]> {
+  return request.get('/api/v1/chat/suggestions', { params: { course_id: courseId } })
 }
 
 function getAccessToken(): string {
@@ -48,6 +54,7 @@ export async function streamChatMessage(
   onDone: (payload: {
     citations: Citation[]
     no_context?: boolean
+    context_relevant?: boolean
     session_title?: string
   }) => void,
   onError: (message: string) => void,
@@ -111,6 +118,7 @@ export async function streamChatMessage(
       onDone({
         citations: parsed.citations || [],
         no_context: parsed.no_context,
+        context_relevant: parsed.context_relevant,
         session_title: parsed.session_title,
       })
     } else if (parsed.reasoning_delta && onReasoningDelta) {

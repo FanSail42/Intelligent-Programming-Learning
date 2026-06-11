@@ -1,4 +1,3 @@
-from datetime import datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
@@ -6,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import DbSession, require_roles
 from app.models.code import AnalysisResult, CodeSubmission
-from app.models.learning import LearningEvent, LearningEventType, WrongQuestionBook
+from app.models.learning import WrongQuestionBook
 from app.models.user import User, UserRole
 from app.schemas.learning import (
     DashboardOut,
@@ -22,7 +21,8 @@ from app.schemas.learning import (
 from app.schemas.response import PageResult, success
 from app.services.learning_cache import get_dashboard_cache, set_dashboard_cache
 from app.services.learning_events import count_events_7d, record_event
-from app.services.mastery import get_weak_kps_for_user, refresh_user_mastery
+from app.services.dashboard_activity import build_recent_events
+from app.services.mastery import get_dashboard_weak_kps, refresh_user_mastery
 from app.services.recommendation import build_recommendations
 from app.services.wrong_book_analysis import (
     apply_wrong_book_course_filter,
@@ -69,9 +69,19 @@ def get_dashboard(
     if cached and course_id is not None:
         weak = [
             WeakKpItem(kp_id=k, name=n, score=s, course_id=c)
-            for k, n, s, c in get_weak_kps_for_user(db, user.id, limit=8, course_id=course_id)
+            for k, n, s, c in get_dashboard_weak_kps(db, user.id, limit=8, course_id=course_id)
         ]
-        payload = {**cached, "weak_kps": [w.model_dump() for w in weak]}
+        recent = [
+            RecentEventItem(**item)
+            for item in build_recent_events(
+                db, user_id=user.id, course_id=course_id, limit=10
+            )
+        ]
+        payload = {
+            **cached,
+            "weak_kps": [w.model_dump() for w in weak],
+            "recent_events": [r.model_dump(mode="json") for r in recent],
+        }
         return success(payload)
 
     total_7d = count_events_7d(db, user.id)
@@ -91,29 +101,15 @@ def get_dashboard(
     )
     weak = [
         WeakKpItem(kp_id=k, name=n, score=s, course_id=c)
-        for k, n, s, c in get_weak_kps_for_user(
+        for k, n, s, c in get_dashboard_weak_kps(
             db, user.id, limit=8, course_id=course_id
         )
     ]
-    since = datetime.now() - timedelta(days=7)
-    recent_rows = (
-        db.query(LearningEvent)
-        .filter(
-            LearningEvent.user_id == user.id,
-            LearningEvent.deleted == 0,
-            LearningEvent.created_at >= since,
-        )
-        .order_by(LearningEvent.id.desc())
-        .limit(10)
-        .all()
-    )
     recent = [
-        RecentEventItem(
-            event_type=row.event_type.value,
-            course_id=row.course_id,
-            created_at=row.created_at,
+        RecentEventItem(**item)
+        for item in build_recent_events(
+            db, user_id=user.id, course_id=course_id, limit=10
         )
-        for row in recent_rows
     ]
     out = DashboardOut(
         summary=DashboardSummary(

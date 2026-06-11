@@ -49,7 +49,7 @@ async def test_wrong_book_stats_sources_and_categories(
     resp = await client.get(
         "/api/v1/learning/wrong-book/stats",
         headers=headers,
-        params={"course_id": course_id, "days": 30},
+        params={"course_id": course_id, "days": 7},
     )
     assert resp.status_code == 200
     stats = resp.json()["data"]
@@ -64,7 +64,7 @@ async def test_wrong_book_stats_sources_and_categories(
     assert "semantic_error" in categories or "syntax_error" in categories
     assert "chat_no_context" in categories
     assert len(stats["by_category"]) >= 2
-    assert len(stats["trend"]) == 30
+    assert len(stats["trend"]) == 7
     pie_total = sum(item.get("value", item.get("count", 0)) for item in stats["mastered_pie"])
     assert pie_total >= stats["summary"]["total"]
 

@@ -6,6 +6,7 @@ import re
 import httpx
 
 from app.core.config import get_settings
+from app.services.runtime_ai_config import get_cached_runtime_ai_config
 
 settings = get_settings()
 LOCAL_EMBED_DIM = 384
@@ -42,14 +43,15 @@ async def _embed_remote_batch(
     api_key: str,
     client: httpx.AsyncClient,
 ) -> list[list[float]]:
-    url = f"{settings.embedding_base_url.rstrip('/')}/embeddings"
+    cfg = get_cached_runtime_ai_config()
+    url = f"{cfg.embedding_base_url.rstrip('/')}/embeddings"
     headers = {"Authorization": f"Bearer {api_key}"}
     payload: dict = {
-        "model": settings.embedding_model,
+        "model": cfg.embedding_model,
         "input": texts,
         "encoding_format": "float",
     }
-    if settings.embedding_model.startswith("text-embedding-v"):
+    if cfg.embedding_model.startswith("text-embedding-v"):
         payload["dimensions"] = settings.embedding_dimensions
 
     resp = await client.post(url, json=payload, headers=headers)
@@ -93,7 +95,8 @@ async def embed_texts(texts: list[str]) -> list[list[float]]:
         return []
 
     prepared = [prepare_embed_text(t) for t in texts]
-    api_key = settings.embedding_api_key or settings.llm_api_key
+    cfg = get_cached_runtime_ai_config()
+    api_key = cfg.embedding_api_key or cfg.llm_api_key
     if not api_key:
         return [_local_embed(t or " ") for t in prepared]
 

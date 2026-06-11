@@ -2,7 +2,7 @@ import structlog
 from chromadb.errors import InvalidArgumentError
 from sqlalchemy.orm import Session
 
-from app.models.material import MaterialChunk
+from app.models.material import CourseMaterial, MaterialChunk
 from app.services.embedding import embed_texts
 from app.services.vector_store import VectorHit, get_vector_store
 
@@ -49,6 +49,18 @@ async def retrieve_chunks(
         .all()
     )
     chunk_map = {c.id: c for c in chunks}
+    material_ids = {c.material_id for c in chunks}
+    materials = (
+        db.query(CourseMaterial)
+        .filter(
+            CourseMaterial.id.in_(material_ids),
+            CourseMaterial.deleted == 0,
+        )
+        .all()
+        if material_ids
+        else []
+    )
+    material_map = {m.id: m.original_name for m in materials}
     enriched: list[VectorHit] = []
     for hit in hits:
         chunk = chunk_map.get(hit.chunk_id)
@@ -60,6 +72,8 @@ async def retrieve_chunks(
                     text=chunk.text,
                     page=chunk.source_page,
                     score=hit.score,
+                    material_id=chunk.material_id,
+                    material_name=material_map.get(chunk.material_id),
                 )
             )
     return enriched

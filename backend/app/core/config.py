@@ -51,7 +51,11 @@ class Settings(BaseSettings):
     material_chunk_size: int = 768
     material_chunk_overlap: int = 64
     llm_daily_limit: int = 100
+    config_encryption_key: str = ""
     chat_history_max_turns: int = 10
+    rag_relevance_score_min: float = 0.52
+    rag_relevance_score_high: float = 0.72
+    rag_keyword_overlap_min: float = 0.12
     code_max_source_chars: int = 16384
     celery_broker_url: str = ""
 
