@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="8" y1="8" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e3a8a"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="32" y1="24" x2="96" y2="104" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="50%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="bulb" x1="52" y1="28" x2="76" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#e0f2fe"/>
+      <stop offset="100%" stop-color="#7dd3fc"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#2563eb" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#bg)"/>
+  <rect x="4" y="4" width="120" height="120" rx="28" stroke="url(#glow)" stroke-width="1.5" opacity="0.55"/>
+  <g transform="translate(0 -6)">
+    <!-- code brackets -->
+    <path d="M34 44 L24 64 L34 84" stroke="url(#glow)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" filter="url(#soft)"/>
+    <path d="M94 44 L104 64 L94 84" stroke="url(#glow)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" filter="url(#soft)"/>
+    <!-- wisdom light bulb -->
+    <path d="M64 34 C54 34 48 42 48 52 C48 60 52 66 56 70 L56 78 L72 78 L72 70 C76 66 80 60 80 52 C80 42 74 34 64 34Z" fill="url(#bulb)" filter="url(#soft)"/>
+    <rect x="56" y="78" width="16" height="8" rx="2" fill="#94a3b8"/>
+    <rect x="58" y="86" width="12" height="4" rx="2" fill="#64748b"/>
+    <!-- circuit nodes linking wisdom + code -->
+    <circle cx="64" cy="58" r="3" fill="#06b6d4"/>
+    <path d="M64 61 V68 M58 64 H70" stroke="#06b6d4" stroke-width="1.5" stroke-linecap="round" opacity="0.8"/>
+    <circle cx="58" cy="64" r="2" fill="#38bdf8"/>
+    <circle cx="70" cy="64" r="2" fill="#38bdf8"/>
+    <circle cx="64" cy="68" r="2" fill="#38bdf8"/>
+  </g>
+  <!-- brand text -->
+  <text x="64" y="104" text-anchor="middle" font-family="'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="10" font-weight="600" fill="#f0f9ff" letter-spacing="0.5">慧编·航帆</text>
+  <text x="64" y="117" text-anchor="middle" font-family="Consolas, 'Segoe UI', monospace" font-size="8.5" font-weight="500" fill="#67e8f9" letter-spacing="1">Code·AI</text>
+</svg>
