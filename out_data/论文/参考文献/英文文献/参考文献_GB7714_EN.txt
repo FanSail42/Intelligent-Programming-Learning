@@ -1,9 +1,0 @@
-[E1] LIFFITON M, SHEESE B, SAVELKA J, DENNY P. CodeHelp: Using large language models with guardrails for scalable support in programming classes[C]//Proceedings of the 23rd Koli Calling International Conference on Computing Education Research. New York: ACM, 2023: Article 8. DOI: 10.1145/3631802.3631830.
-
-[E2] SHEESE B, LIFFITON M, SAVELKA J, DENNY P. Patterns of student help-seeking when using a large language model-powered programming assistant[C]//Proceedings of the 26th Australasian Computing Education Conference. New York: ACM, 2024. DOI: 10.1145/3636243.3636249.
-
-[E3] MA I, MARTINS A K, LOPES C V. Integrating AI tutors in a programming course[J/OL]. arXiv:2407.15718, 2024[2026-06-13]. https://arxiv.org/abs/2407.15718.
-
-[E4] ELNAFFAR S, RASHIDI F, ABUALKISHIK A Z. Teaching with AI: A systematic review of chatbots, generative tools, and tutoring systems in programming education[J]. International Journal of Learning, Teaching and Educational Research, 2026, 25(1): 1-28. DOI: 10.26803/ijlter.25.1.1.
-
-[E5] KATHARAKIS K, ROSSI S, MUKKAMALA R R. Small language models for curriculum-based guidance[J/OL]. arXiv:2510.02347, 2025[2026-06-13]. https://arxiv.org/abs/2510.02347.
